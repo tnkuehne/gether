@@ -1,6 +1,11 @@
 <script>
 	import { getFileContent, getRepoMetadata } from './data.remote';
 	import { page } from '$app/state';
+	import { Card, CardContent, CardHeader } from '$lib/components/ui/card';
+	import { Badge } from '$lib/components/ui/badge';
+	import { buttonVariants } from '$lib/components/ui/button';
+	import { Textarea } from '$lib/components/ui/textarea';
+	import { Separator } from '$lib/components/ui/separator';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
@@ -13,50 +18,61 @@
 
 <svelte:boundary>
 	{#snippet failed(error)}
-		<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-			<div class="rounded-lg border border-red-200 bg-red-50 p-6">
-				<h2 class="mb-2 text-xl font-semibold text-red-900">Failed to load file</h2>
-				<p class="text-red-700">{String(error?.message || error)}</p>
-			</div>
+		<div class="container mx-auto max-w-7xl px-4 py-8">
+			<Card class="border-destructive bg-destructive/10">
+				<CardHeader>
+					<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
+				</CardHeader>
+				<CardContent>
+					<p class="text-destructive">{String(error?.message || error)}</p>
+				</CardContent>
+			</Card>
 		</div>
 	{/snippet}
 
-	<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-		<header class="mb-8">
-			<div class="mb-4">
-				<h1 class="mb-1 text-3xl font-bold text-gray-900">
+	<div class="container mx-auto max-w-7xl px-4 py-8">
+		<header class="mb-8 space-y-4">
+			<div>
+				<h1 class="mb-2 text-3xl font-bold tracking-tight">
 					{org}/{repo}
 				</h1>
 				{#if repoData.description}
-					<p class="text-sm text-gray-600">{repoData.description}</p>
+					<p class="text-sm text-muted-foreground">{repoData.description}</p>
 				{/if}
 			</div>
-			<div class="flex items-center gap-4 text-sm text-gray-600">
+
+			<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 				<span class="font-mono">
-					<span class="font-semibold text-green-600">{branch}</span>
-					<span class="mx-2 text-gray-400">/</span>
-					<span class="text-gray-700">{path}</span>
+					<Badge
+						variant="secondary"
+						class="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-100"
+					>
+						{branch}
+					</Badge>
+					<span class="mx-2">/</span>
+					<span class="text-foreground">{path}</span>
 				</span>
-				<span class="text-gray-400">•</span>
+				<Separator orientation="vertical" class="h-4" />
 				<span>{(fileData.size / 1024).toFixed(2)} KB</span>
-				<span class="text-gray-400">•</span>
-				<span class="font-mono text-xs text-gray-500">{fileData.sha.substring(0, 7)}</span>
+				<Separator orientation="vertical" class="h-4" />
+				<code class="rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
+					>{fileData.sha.substring(0, 7)}</code
+				>
 			</div>
 		</header>
 
-		<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-			<div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+		<Card>
+			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-4">
 				<div class="flex items-center gap-3">
-					<span class="font-mono text-sm font-medium text-gray-900">{fileData.name}</span>
-					<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-						{repoData.language || 'Text'}
-					</span>
+					<span class="font-mono text-sm font-medium">{fileData.name}</span>
+					<Badge variant="outline">{repoData.language || 'Text'}</Badge>
 				</div>
-				<div class="flex items-center gap-3">
+
+				<div class="flex items-center gap-2">
 					<a
 						href={fileData.downloadUrl}
 						download
-						class="text-sm font-medium text-gray-600 hover:text-gray-900"
+						class={buttonVariants({ variant: 'ghost', size: 'sm' })}
 					>
 						Download
 					</a>
@@ -64,19 +80,23 @@
 						href={fileData.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+						class={buttonVariants({ variant: 'ghost', size: 'sm' })}
 					>
 						View on GitHub →
 					</a>
 				</div>
-			</div>
+			</CardHeader>
 
-			<textarea
-				bind:value={content}
-				class="h-150 w-full resize-none border-0 p-6 font-mono text-sm leading-6 text-gray-900 focus:outline-none"
-				placeholder="Edit your markdown/mdx here..."
-				spellcheck="false"
-			></textarea>
-		</div>
+			<Separator />
+
+			<CardContent class="p-0">
+				<Textarea
+					bind:value={content}
+					class="min-h-150 w-full resize-none rounded-none border-0 font-mono text-sm focus-visible:ring-0"
+					placeholder="Edit your markdown/mdx here..."
+					spellcheck="false"
+				/>
+			</CardContent>
+		</Card>
 	</div>
 </svelte:boundary>
