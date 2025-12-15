@@ -5,7 +5,8 @@ onlyBuiltDependencies:
   - esbuild
 minimumReleaseAge: 1440 # 1 day
 minimumReleaseAgeExclude:
-  - "chokidar@4.0.3"
   - '@rollup/*'
 verifyDepsBeforeRun: install
 trustPolicy: no-downgrade
+trustPolicyExclude:
+  - "chokidar@4.0.3"
