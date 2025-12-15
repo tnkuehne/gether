@@ -1,2 +1,7 @@
 onlyBuiltDependencies:
   - esbuild
+minimumReleaseAge: 1440 # 1 day
+minimumReleaseAgeExclude:
+  - '@rollup/*'
+verifyDepsBeforeRun: install
+trustPolicy: no-downgrade
