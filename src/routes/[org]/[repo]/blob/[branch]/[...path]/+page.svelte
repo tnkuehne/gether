@@ -4,6 +4,11 @@
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
+
+	const fileData = await getFileContent({ org, repo, branch, path });
+	const repoData = await getRepoMetadata({ org, repo });
+
+	let content = $state(fileData.content);
 </script>
 
 <svelte:boundary>
@@ -15,9 +20,6 @@
 			</div>
 		</div>
 	{/snippet}
-
-	{@const fileData = await getFileContent({ org, repo, branch, path })}
-	{@const repoData = await getRepoMetadata({ org, repo })}
 
 	<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 		<header class="mb-8">
@@ -69,11 +71,12 @@
 				</div>
 			</div>
 
-			<div class="overflow-x-auto bg-white p-6">
-				<pre class="text-sm leading-6"><code class="font-mono text-gray-900"
-						>{fileData.content}</code
-					></pre>
-			</div>
+			<textarea
+				bind:value={content}
+				class="h-150 w-full resize-none border-0 p-6 font-mono text-sm leading-6 text-gray-900 focus:outline-none"
+				placeholder="Edit your markdown/mdx here..."
+				spellcheck="false"
+			></textarea>
 		</div>
 	</div>
 </svelte:boundary>
