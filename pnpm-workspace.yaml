@@ -9,4 +9,5 @@ minimumReleaseAgeExclude:
 verifyDepsBeforeRun: install
 trustPolicy: no-downgrade
 trustPolicyExclude:
-  - "chokidar@4.0.3"
+  - 'chokidar@4.0.3'
+  - undici@5.29.0
