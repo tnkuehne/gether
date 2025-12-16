@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import { getFileContent, getRepoMetadata } from './data.remote';
 	import { page } from '$app/state';
 	import { Card, CardContent, CardHeader } from '$lib/components/ui/card';
@@ -6,6 +6,7 @@
 	import { buttonVariants } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Separator } from '$lib/components/ui/separator';
+	import { onMount, onDestroy } from 'svelte';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
@@ -14,6 +15,102 @@
 	const repoData = await getRepoMetadata({ org, repo });
 
 	let content = $state(fileData.content);
+	let ws = $state<WebSocket | null>(null);
+	let isRemoteUpdate = $state(false);
+	let lastValue = $state(fileData.content);
+
+	function connect() {
+		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
+
+		ws = new WebSocket(wsUrl);
+
+		ws.onopen = () => {
+			// Request initial content and send our content to initialize DO if needed
+			ws?.send(JSON.stringify({ type: 'init', content: fileData.content }));
+		};
+
+		ws.onmessage = (event) => {
+			const data = JSON.parse(event.data);
+
+			switch (data.type) {
+				case 'init': {
+					// Only update content if DO has content (not empty)
+					// This prevents overwriting GitHub content with empty DO state
+					if (data.content) {
+						isRemoteUpdate = true;
+						content = data.content;
+						lastValue = data.content;
+						isRemoteUpdate = false;
+					}
+					break;
+				}
+
+				case 'change': {
+					// Apply remote changes
+					isRemoteUpdate = true;
+					const { from, to, insert } = data.changes;
+					const before = content.slice(0, from);
+					const after = content.slice(to);
+					content = before + insert + after;
+					lastValue = content;
+					isRemoteUpdate = false;
+					break;
+				}
+			}
+		};
+
+		ws.onclose = () => {
+			// Attempt reconnection after 2 seconds
+			setTimeout(connect, 2000);
+		};
+
+		ws.onerror = (error) => {
+			console.error('WebSocket error:', error);
+		};
+	}
+
+	function handleInput(event: Event) {
+		if (isRemoteUpdate || !ws || ws.readyState !== WebSocket.OPEN) {
+			return;
+		}
+
+		const target = (event.target) as HTMLTextAreaElement;
+		const newValue = target.value;
+
+		// Simple diff: find where the change occurred
+		let from = 0;
+		while (from < lastValue.length && from < newValue.length && lastValue[from] === newValue[from]) {
+			from++;
+		}
+
+		let lastEnd = lastValue.length;
+		let newEnd = newValue.length;
+		while (lastEnd > from && newEnd > from && lastValue[lastEnd - 1] === newValue[newEnd - 1]) {
+			lastEnd--;
+			newEnd--;
+		}
+
+		const insert = newValue.slice(from, newEnd);
+
+		// Send change
+		ws.send(JSON.stringify({
+			type: 'change',
+			changes: { from, to: lastEnd, insert }
+		}));
+
+		lastValue = newValue;
+	}
+
+	onMount(() => {
+		connect();
+	});
+
+	onDestroy(() => {
+		if (ws) {
+			ws.close();
+		}
+	});
 </script>
 
 <svelte:boundary>
@@ -92,6 +189,7 @@
 			<CardContent class="p-0">
 				<Textarea
 					bind:value={content}
+					oninput={handleInput}
 					class="min-h-150 w-full resize-none rounded-none border-0 font-mono text-sm focus-visible:ring-0"
 					placeholder="Edit your markdown/mdx here..."
 					spellcheck="false"

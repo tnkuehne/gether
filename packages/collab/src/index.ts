@@ -1,64 +1,147 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject } from 'cloudflare:workers';
 
-/**
- * Welcome to Cloudflare Workers! This is your first Durable Objects application.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your Durable Object in action
- * - Run `npm run deploy` to publish your application
- *
- * Bind resources to your worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/durable-objects
- */
+interface Env {
+	COLLAB_DOCUMENT: DurableObjectNamespace<CollaborativeDocument>;
+}
 
-/** A Durable Object's behavior is defined in an exported Javascript class */
-export class MyDurableObject extends DurableObject<Env> {
-	/**
-	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
-	 * 	`DurableObjectStub::get` for a given identifier (no-op constructors can be omitted)
-	 *
-	 * @param ctx - The interface for interacting with Durable Object state
-	 * @param env - The interface to reference bindings declared in wrangler.jsonc
-	 */
+interface Message {
+	type: 'init' | 'change';
+	content?: string;
+	changes?: {
+		from: number;
+		to: number;
+		insert: string;
+	};
+}
+
+export class CollaborativeDocument extends DurableObject<Env> {
+	private content: string = '';
+
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
+
+		// Initialize SQLite storage for document content
+		ctx.blockConcurrencyWhile(async () => {
+			// Create table if it doesn't exist
+			this.ctx.storage.sql.exec(`
+				CREATE TABLE IF NOT EXISTS document (
+					id INTEGER PRIMARY KEY CHECK (id = 1),
+					content TEXT NOT NULL DEFAULT ''
+				)
+			`);
+
+			// Load existing content or initialize with empty
+			const result = this.ctx.storage.sql.exec<{ content: string }>('SELECT content FROM document WHERE id = 1').toArray();
+
+			if (result.length > 0) {
+				this.content = result[0].content;
+			} else {
+				// Insert initial empty document
+				this.ctx.storage.sql.exec("INSERT INTO document (id, content) VALUES (1, '')");
+				this.content = '';
+			}
+		});
 	}
 
-	/**
-	 * The Durable Object exposes an RPC method sayHello which will be invoked when a Durable
-	 *  Object instance receives a request from a Worker via the same method invocation on the stub
-	 *
-	 * @param name - The name provided to a Durable Object instance from a Worker
-	 * @returns The greeting to be sent back to the Worker
-	 */
-	async sayHello(name: string): Promise<string> {
-		return `Hello, ${name}!`;
+	async fetch(request: Request): Promise<Response> {
+		// Check for WebSocket upgrade
+		const upgradeHeader = request.headers.get('Upgrade');
+		if (upgradeHeader !== 'websocket') {
+			return new Response('Expected WebSocket', { status: 426 });
+		}
+
+		// Create WebSocket pair
+		const pair = new WebSocketPair();
+		const [client, server] = Object.values(pair);
+
+		// Accept the WebSocket with Hibernation API
+		this.ctx.acceptWebSocket(server);
+
+		return new Response(null, {
+			status: 101,
+			webSocket: client
+		});
+	}
+
+	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+		try {
+			const data = JSON.parse(message.toString()) as Message;
+
+			switch (data.type) {
+				case 'init': {
+					// If DO has no content and client sent content, initialize with it
+					if (!this.content && data.content) {
+						this.content = data.content;
+						this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
+					}
+
+					// Send current document state to client
+					ws.send(
+						JSON.stringify({
+							type: 'init',
+							content: this.content
+						})
+					);
+					break;
+				}
+
+				case 'change': {
+					// Apply and broadcast document changes
+					const { changes } = data;
+					if (changes) {
+						// Apply change to content
+						const before = this.content.slice(0, changes.from);
+						const after = this.content.slice(changes.to);
+						this.content = before + changes.insert + after;
+
+						// Persist to storage
+						this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
+
+						// Broadcast to all other clients
+						this.broadcast(
+							{
+								type: 'change',
+								changes
+							},
+							ws
+						);
+					}
+					break;
+				}
+			}
+		} catch (error) {
+			console.error('WebSocket message error:', error);
+		}
+	}
+
+	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+		ws.close(code, reason);
+	}
+
+	async webSocketError(ws: WebSocket, error: unknown) {
+		console.error('WebSocket error:', error);
+		ws.close(1011, 'WebSocket error');
+	}
+
+	private broadcast(message: Message, exclude?: WebSocket) {
+		const payload = JSON.stringify(message);
+
+		for (const client of this.ctx.getWebSockets()) {
+			if (client !== exclude && client.readyState === WebSocket.OPEN) {
+				try {
+					client.send(payload);
+				} catch (error) {
+					console.error('Broadcast error:', error);
+				}
+			}
+		}
 	}
 }
 
 export default {
-	/**
-	 * This is the standard fetch handler for a Cloudflare Worker
-	 *
-	 * @param request - The request submitted to the Worker from the client
-	 * @param env - The interface to reference bindings declared in wrangler.jsonc
-	 * @param ctx - The execution context of the Worker
-	 * @returns The response to be sent back to the client
-	 */
-	async fetch(request, env, ctx): Promise<Response> {
-		// Create a stub to open a communication channel with the Durable Object
-		// instance named "foo".
-		//
-		// Requests from all Workers to the Durable Object instance named "foo"
-		// will go to a single remote Durable Object instance.
-		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
-
-		// Call the `sayHello()` RPC method on the stub to invoke the method on
-		// the remote Durable Object instance.
-		const greeting = await stub.sayHello("world");
-
-		return new Response(greeting);
-	},
+	async fetch(request: Request, env: Env): Promise<Response> {
+		return new Response('Collab service running. Use WebSocket endpoints.', {
+			status: 200
+		});
+	}
 } satisfies ExportedHandler<Env>;
