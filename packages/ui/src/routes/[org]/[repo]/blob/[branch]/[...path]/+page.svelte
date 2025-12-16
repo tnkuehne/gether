@@ -19,6 +19,9 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let canEdit = $state(false);
+	let needsGitHubApp = $state(false);
+	let gitHubAppInstallUrl = $state<string | null>(null);
+	let hasGitHubApp = $state(false);
 
 	let content = $state('');
 	let originalContent = $state('');
@@ -31,15 +34,36 @@
 	let editorRef: any = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
-	// Get GitHub access token from Better Auth
+	// Get GitHub access token from Better Auth (basic OAuth for login)
 	let githubToken = $state<string | undefined>(undefined);
+
+	// Check GitHub App installation status
+	async function checkGitHubAppStatus() {
+		if (!$session.data) return;
+
+		try {
+			const response = await fetch('/api/github-app');
+			if (response.ok) {
+				const data = await response.json();
+				hasGitHubApp = data.installed;
+				gitHubAppInstallUrl = data.installUrl;
+			}
+		} catch (err) {
+			console.error('Failed to check GitHub App status:', err);
+		}
+	}
 
 	$effect(() => {
 		if (!$session.data) {
 			githubToken = undefined;
+			hasGitHubApp = false;
 			return;
 		}
 
+		// Check GitHub App installation status
+		checkGitHubAppStatus();
+
+		// Get OAuth token
 		authClient.getAccessToken({ providerId: 'github' })
 			.then(response => {
 				githubToken = response?.data?.accessToken;
@@ -133,9 +157,15 @@
 
 	// Fetch GitHub data when auth token changes
 	$effect(() => {
+		// Skip if we're not authenticated yet (token still loading)
+		if ($session.data && !githubToken) {
+			return;
+		}
+
 		loading = true;
 		error = null;
 		canEdit = false;
+		needsGitHubApp = false;
 
 		const octokit = new Octokit(githubToken ? { auth: githubToken } : undefined);
 
@@ -152,7 +182,13 @@
 			})
 			.catch((err: any) => {
 				if (err.status === 404) {
-					error = 'File or repository not found';
+					// Could be a private repo we don't have access to
+					if ($session.data && githubToken) {
+						needsGitHubApp = true;
+						error = 'This appears to be a private repository. Install the GitHub App to grant access.';
+					} else {
+						error = 'File or repository not found';
+					}
 				} else if (err.status === 403) {
 					error = 'Rate limit exceeded or access denied';
 				} else {
@@ -161,6 +197,8 @@
 				loading = false;
 			});
 	});
+
+
 
 	function connect() {
 		if (!fileData) return;
@@ -424,6 +462,32 @@
 			</CardHeader>
 			<CardContent>
 				<p class="text-destructive">{error}</p>
+				{#if needsGitHubApp && gitHubAppInstallUrl}
+					<div class="mt-4 space-y-2">
+						<p class="text-sm text-muted-foreground">
+							{#if hasGitHubApp}
+								The GitHub App is installed but doesn't have access to this repository.
+								Click below to add this repository to your installation.
+							{:else}
+								Install our GitHub App to access private repositories with fine-grained permissions.
+								You can select which specific repositories to grant access to.
+							{/if}
+						</p>
+						<Button
+							onclick={() => {
+								window.location.href = `${gitHubAppInstallUrl}?state=${encodeURIComponent(window.location.href)}`;
+							}}
+						>
+							{hasGitHubApp ? 'Configure GitHub App' : 'Install GitHub App'}
+						</Button>
+					</div>
+				{:else if needsGitHubApp}
+					<div class="mt-4">
+						<p class="text-sm text-muted-foreground">
+							GitHub App is not configured. Please set GITHUB_APP_ID, GITHUB_APP_SLUG, and GITHUB_APP_PRIVATE_KEY.
+						</p>
+					</div>
+				{/if}
 			</CardContent>
 		</Card>
 	{:else if fileData && repoData}
