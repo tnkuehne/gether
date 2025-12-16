@@ -474,8 +474,24 @@
 							{/if}
 						</p>
 						<Button
-							onclick={() => {
-								window.location.href = `${gitHubAppInstallUrl}?state=${encodeURIComponent(window.location.href)}`;
+							onclick={async () => {
+								// Get OAuth URL with state from Better Auth
+								const response = await authClient.signIn.social({
+									provider: 'github',
+									callbackURL: window.location.href,
+									disableRedirect: true
+								});
+
+								// Extract state parameter from OAuth URL
+								if (response?.data.url) {
+									const oauthUrl = new URL(response.data.url);
+									const state = oauthUrl.searchParams.get('state');
+
+									if (state && gitHubAppInstallUrl) {
+										// Append state to GitHub App install URL
+										window.location.href = `${gitHubAppInstallUrl}?state=${state}`;
+									}
+								}
 							}}
 						>
 							{hasGitHubApp ? 'Configure GitHub App' : 'Install GitHub App'}
