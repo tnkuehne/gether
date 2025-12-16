@@ -7,9 +7,12 @@
 	import { onMount, onDestroy } from 'svelte';
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
 	import { Octokit } from 'octokit';
+	import { authClient } from '$lib/auth-client';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
+
+	const session = authClient.useSession();
 
 	let fileData = $state<any>(null);
 	let repoData = $state<any>(null);
@@ -277,13 +280,44 @@
 {:else if fileData && repoData}
 	<div class="container mx-auto max-w-7xl px-4 py-8">
 		<header class="mb-8 space-y-4">
-			<div>
-				<h1 class="mb-2 text-3xl font-bold tracking-tight">
-					{org}/{repo}
-				</h1>
-				{#if repoData.description}
-					<p class="text-sm text-muted-foreground">{repoData.description}</p>
-				{/if}
+			<div class="flex items-start justify-between">
+				<div>
+					<h1 class="mb-2 text-3xl font-bold tracking-tight">
+						{org}/{repo}
+					</h1>
+					{#if repoData.description}
+						<p class="text-sm text-muted-foreground">{repoData.description}</p>
+					{/if}
+				</div>
+
+				<div class="flex items-center gap-2">
+					{#if $session.data}
+						<div class="flex items-center gap-2">
+							<span class="text-sm text-muted-foreground">{$session.data.user.name}</span>
+							<Button
+								onclick={async () => {
+									await authClient.signOut();
+								}}
+								variant="outline"
+								size="sm"
+							>
+								Sign Out
+							</Button>
+						</div>
+					{:else}
+						<Button
+							onclick={async () => {
+								await authClient.signIn.social({
+									provider: 'github',
+									callbackUrl: window.location.href,
+								});
+							}}
+							size="sm"
+						>
+							Sign in with GitHub
+						</Button>
+					{/if}
+				</div>
 			</div>
 
 			<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
