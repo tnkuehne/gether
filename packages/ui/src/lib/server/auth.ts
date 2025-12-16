@@ -11,6 +11,7 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
 }
 
 export const auth = betterAuth({
+  secret: env.BETTER_AUTH_SECRET,
   socialProviders: {
       github: {
           clientId: GITHUB_CLIENT_ID,
@@ -19,3 +20,6 @@ export const auth = betterAuth({
   },
   plugins: [sveltekitCookies(getRequestEvent)],
 });
+
+export type Session = typeof auth.$Infer.Session.session;
+export type User = typeof auth.$Infer.Session.user;

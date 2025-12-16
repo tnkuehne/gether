@@ -14,6 +14,10 @@
 		"cf-typegen": "wrangler types ./src/worker-configuration.d.ts"
 	},
 	"devDependencies": {
+		"@codemirror/commands": "^6.10.0",
+		"@codemirror/lang-markdown": "^6.5.0",
+		"@codemirror/state": "^6.5.2",
+		"@codemirror/view": "^6.39.4",
 		"@internationalized/date": "^3.10.0",
 		"@lucide/svelte": "^0.561.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.4",
@@ -24,9 +28,10 @@
 		"@tailwindcss/vite": "^4.1.17",
 		"@tanstack/table-core": "^8.21.3",
 		"@types/node": "^24",
-		"better-auth": "^1.4.7",
+		"better-auth": "https://pkg.pr.new/better-auth/better-auth@6758",
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",
+		"codemirror": "^6.0.2",
 		"mode-watcher": "^1.1.0",
 		"octokit": "^5.0.5",
 		"paneforge": "^1.0.2",
@@ -40,11 +45,6 @@
 		"valibot": "^1.2.0",
 		"vaul-svelte": "1.0.0-next.7",
 		"vite": "^7.2.2",
-		"wrangler": "^4.54.0",
-		"@codemirror/commands": "^6.10.0",
-		"@codemirror/lang-markdown": "^6.5.0",
-		"@codemirror/state": "^6.5.2",
-		"@codemirror/view": "^6.39.4",
-		"codemirror": "^6.0.2"
+		"wrangler": "^4.54.0"
 	}
 }

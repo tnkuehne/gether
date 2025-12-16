@@ -7,6 +7,10 @@ declare global {
             cf: CfProperties
             ctx: ExecutionContext
         }
+        interface Locals {
+            session?: import("$lib/server/auth").Session;
+            user?: import("$lib/server/auth").User;
+        }
     }
 }
 
