@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { getFileContent, getRepoMetadata } from './data.remote';
 	import { page } from '$app/state';
 	import { Card, CardContent, CardHeader } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
@@ -7,29 +6,105 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { onMount, onDestroy } from 'svelte';
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
+	import { Octokit } from 'octokit';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
 
-	const fileData = await getFileContent({ org, repo, branch, path });
-	const repoData = await getRepoMetadata({ org, repo });
+	let fileData = $state<any>(null);
+	let repoData = $state<any>(null);
+	let loading = $state(true);
+	let error = $state<string | null>(null);
 
-	let content = $state(fileData.content);
+	let content = $state('');
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
-	let lastValue = $state(fileData.content);
+	let lastValue = $state('');
 	let remoteCursors = $state<Map<string, { position: number; color: string }>>(new Map());
 	let myConnectionId = $state<string>('');
 	let editorRef: any = null;
 
+	async function fetchGitHubData() {
+		try {
+			const octokit = new Octokit();
+
+			// Fetch file content
+			const { data: fileResponse } = await octokit.rest.repos.getContent({
+				owner: org,
+				repo: repo,
+				path: path,
+				ref: branch
+			});
+
+			if ('content' in fileResponse && fileResponse.type === 'file') {
+				const decodedContent = atob(fileResponse.content);
+
+				fileData = {
+					content: decodedContent,
+					url: fileResponse.html_url,
+					downloadUrl: fileResponse.download_url,
+					sha: fileResponse.sha,
+					size: fileResponse.size,
+					name: fileResponse.name
+				};
+
+				content = decodedContent;
+				lastValue = decodedContent;
+			} else if (Array.isArray(fileResponse)) {
+				error = 'Path is a directory, not a file';
+				loading = false;
+				return;
+			} else {
+				error = 'Invalid file type';
+				loading = false;
+				return;
+			}
+
+			// Fetch repo metadata
+			const { data: repoResponse } = await octokit.rest.repos.get({
+				owner: org,
+				repo: repo
+			});
+
+			repoData = {
+				name: repoResponse.name,
+				fullName: repoResponse.full_name,
+				description: repoResponse.description,
+				defaultBranch: repoResponse.default_branch,
+				isPrivate: repoResponse.private,
+				stars: repoResponse.stargazers_count,
+				forks: repoResponse.forks_count,
+				language: repoResponse.language,
+				updatedAt: repoResponse.updated_at,
+				htmlUrl: repoResponse.html_url
+			};
+
+			loading = false;
+
+			// Connect to WebSocket after data is loaded
+			connect();
+		} catch (err: any) {
+			if (err.status === 404) {
+				error = 'File or repository not found';
+			} else if (err.status === 403) {
+				error = 'Rate limit exceeded or access denied';
+			} else {
+				error = `Failed to fetch: ${err.message}`;
+			}
+			loading = false;
+		}
+	}
+
 	function connect() {
+		if (!fileData) return;
+
 		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
 
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {
-			ws?.send(JSON.stringify({ type: 'init', content: fileData.content }));
+			ws?.send(JSON.stringify({ type: 'init', content: content }));
 		};
 
 		ws.onmessage = (event) => {
@@ -121,7 +196,7 @@
 
 
 	onMount(() => {
-		connect();
+		fetchGitHubData();
 	});
 
 	function handleCursorChange(position: number) {
@@ -160,20 +235,26 @@
 	});
 </script>
 
-<svelte:boundary>
-	{#snippet failed(error)}
-		<div class="container mx-auto max-w-7xl px-4 py-8">
-			<Card class="border-destructive bg-destructive/10">
-				<CardHeader>
-					<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
-				</CardHeader>
-				<CardContent>
-					<p class="text-destructive">{String(error?.message || error)}</p>
-				</CardContent>
-			</Card>
-		</div>
-	{/snippet}
-
+{#if loading}
+	<div class="container mx-auto max-w-7xl px-4 py-8">
+		<Card>
+			<CardContent class="py-8">
+				<p class="text-center text-muted-foreground">Loading file from GitHub...</p>
+			</CardContent>
+		</Card>
+	</div>
+{:else if error}
+	<div class="container mx-auto max-w-7xl px-4 py-8">
+		<Card class="border-destructive bg-destructive/10">
+			<CardHeader>
+				<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
+			</CardHeader>
+			<CardContent>
+				<p class="text-destructive">{error}</p>
+			</CardContent>
+		</Card>
+	</div>
+{:else if fileData && repoData}
 	<div class="container mx-auto max-w-7xl px-4 py-8">
 		<header class="mb-8 space-y-4">
 			<div>
@@ -244,4 +325,4 @@
 			</CardContent>
 		</Card>
 	</div>
-</svelte:boundary>
+{/if}
