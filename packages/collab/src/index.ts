@@ -14,6 +14,12 @@ interface Message {
 	};
 	position?: number;
 	connectionId?: string;
+	user?: {
+		name: string;
+		image?: string;
+	};
+	userName?: string;
+	userImage?: string;
 }
 
 export class CollaborativeDocument extends DurableObject<Env> {
@@ -52,12 +58,21 @@ export class CollaborativeDocument extends DurableObject<Env> {
 			return new Response('Expected WebSocket', { status: 426 });
 		}
 
+		// Extract user info from headers
+		const userName = request.headers.get('X-User-Name');
+		const userImage = request.headers.get('X-User-Image');
+		const userId = request.headers.get('X-User-Id');
+
 		// Create WebSocket pair
 		const pair = new WebSocketPair();
 		const [client, server] = Object.values(pair);
 
-		// Accept the WebSocket with Hibernation API
-		this.ctx.acceptWebSocket(server);
+		// Accept the WebSocket with Hibernation API and store user info
+		const tags: string[] = [];
+		if (userName) tags.push(userName);
+		if (userImage) tags.push(userImage);
+		if (userId) tags.push(userId);
+		this.ctx.acceptWebSocket(server, tags);
 
 		return new Response(null, {
 			status: 101,
@@ -73,7 +88,27 @@ export class CollaborativeDocument extends DurableObject<Env> {
 				case 'init': {
 					// Generate a unique connection ID for this client
 					const connectionId = crypto.randomUUID();
-					ws.serializeAttachment({ connectionId });
+
+					// Get user info from websocket tags (set during accept)
+					const tags = this.ctx.getTags(ws);
+					const userNameEncoded = tags[0];
+					const userImage = tags[1];
+
+					// Decode base64 user name
+					let userName: string | undefined;
+					if (userNameEncoded) {
+						try {
+							userName = decodeURIComponent(escape(atob(userNameEncoded)));
+						} catch {
+							userName = userNameEncoded; // Fallback to encoded value
+						}
+					}
+
+					ws.serializeAttachment({
+						connectionId,
+						userName: userName || undefined,
+						userImage: userImage || undefined
+					});
 
 					// If DO has no content and client sent content, initialize with it
 					if (!this.content && data.content) {
@@ -104,11 +139,19 @@ export class CollaborativeDocument extends DurableObject<Env> {
 						// Persist to storage
 						this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
 
-						// Broadcast to all other clients
+						// Get connection ID from attachment
+						const attachment = ws.deserializeAttachment() as {
+							connectionId: string;
+							userName?: string;
+							userImage?: string;
+						} | null;
+
+						// Broadcast to all clients (including sender) with connectionId
 						this.broadcast(
 							{
 								type: 'change',
-								changes
+								changes,
+								connectionId: attachment?.connectionId
 							},
 							ws
 						);
@@ -117,14 +160,21 @@ export class CollaborativeDocument extends DurableObject<Env> {
 				}
 
 				case 'cursor': {
-					// Broadcast cursor position to all other clients with connection ID
+					// Broadcast cursor position to all other clients with connection ID and user info
 					if (data.position !== undefined) {
-						const attachment = ws.deserializeAttachment() as { connectionId: string } | null;
+						const attachment = ws.deserializeAttachment() as {
+							connectionId: string;
+							userName?: string;
+							userImage?: string;
+						} | null;
+
 						this.broadcast(
 							{
 								type: 'cursor',
 								position: data.position,
-								connectionId: attachment?.connectionId
+								connectionId: attachment?.connectionId,
+								userName: attachment?.userName,
+								userImage: attachment?.userImage
 							},
 							ws
 						);
@@ -137,8 +187,13 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		}
 	}
 
-	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
-		const attachment = ws.deserializeAttachment() as { connectionId: string } | null;
+	async webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean) {
+		const attachment = ws.deserializeAttachment() as {
+			connectionId: string;
+			userName?: string;
+			userImage?: string;
+		} | null;
+
 		if (attachment?.connectionId) {
 			this.broadcast({
 				type: 'cursor-leave',
@@ -157,7 +212,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		const payload = JSON.stringify(message);
 
 		for (const client of this.ctx.getWebSockets()) {
-			if (client !== exclude && client.readyState === WebSocket.OPEN) {
+			if (client.readyState === WebSocket.OPEN) {
 				try {
 					client.send(payload);
 				} catch (error) {
@@ -169,7 +224,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 }
 
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
+	async fetch(): Promise<Response> {
 		return new Response('Collab service running. Use WebSocket endpoints.', {
 			status: 200
 		});

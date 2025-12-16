@@ -4,7 +4,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
 	import { Octokit } from 'octokit';
 	import { authClient } from '$lib/auth-client';
@@ -18,9 +18,10 @@
 	let repoData = $state<any>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+	let canEdit = $state(false);
 
 	let content = $state('');
-	let originalContent = $state(''); // Store original GitHub content
+	let originalContent = $state('');
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state('');
@@ -29,77 +30,136 @@
 	let editorRef: any = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
-	async function fetchGitHubData() {
-		try {
-			const octokit = new Octokit();
+	// Get GitHub access token from Better Auth
+	let githubToken = $state<string | undefined>(undefined);
 
-			// Fetch file content
-			const { data: fileResponse } = await octokit.rest.repos.getContent({
-				owner: org,
-				repo: repo,
-				path: path,
-				ref: branch
+	$effect(() => {
+		if (!$session.data) {
+			githubToken = undefined;
+			return;
+		}
+
+		authClient.getAccessToken({ providerId: 'github' })
+			.then(response => {
+				githubToken = response?.data?.accessToken;
+			})
+			.catch((err) => {
+				console.error('getAccessToken error:', err);
+				githubToken = undefined;
 			});
+	});
 
-			if ('content' in fileResponse && fileResponse.type === 'file') {
-				const decodedContent = atob(fileResponse.content);
+	async function fetchFileContent(octokit: Octokit) {
+		const { data: fileResponse } = await octokit.rest.repos.getContent({
+			owner: org,
+			repo: repo,
+			path: path,
+			ref: branch
+		});
 
-				fileData = {
-					content: decodedContent,
-					url: fileResponse.html_url,
-					downloadUrl: fileResponse.download_url,
-					sha: fileResponse.sha,
-					size: fileResponse.size,
-					name: fileResponse.name
-				};
+		if ('content' in fileResponse && fileResponse.type === 'file') {
+			const decodedContent = atob(fileResponse.content);
 
-				content = decodedContent;
-				originalContent = decodedContent;
-				lastValue = decodedContent;
-			} else if (Array.isArray(fileResponse)) {
-				error = 'Path is a directory, not a file';
-				loading = false;
-				return;
-			} else {
-				error = 'Invalid file type';
-				loading = false;
-				return;
-			}
-
-			// Fetch repo metadata
-			const { data: repoResponse } = await octokit.rest.repos.get({
-				owner: org,
-				repo: repo
-			});
-
-			repoData = {
-				name: repoResponse.name,
-				fullName: repoResponse.full_name,
-				description: repoResponse.description,
-				defaultBranch: repoResponse.default_branch,
-				isPrivate: repoResponse.private,
-				stars: repoResponse.stargazers_count,
-				forks: repoResponse.forks_count,
-				language: repoResponse.language,
-				updatedAt: repoResponse.updated_at,
-				htmlUrl: repoResponse.html_url
+			fileData = {
+				content: decodedContent,
+				url: fileResponse.html_url,
+				downloadUrl: fileResponse.download_url,
+				sha: fileResponse.sha,
+				size: fileResponse.size,
+				name: fileResponse.name
 			};
 
-			loading = false;
-
-			// Connect to WebSocket after data is loaded
-			connect();
-		} catch (err: any) {
-			if (err.status === 404) {
-				error = 'File or repository not found';
-			} else if (err.status === 403) {
-				error = 'Rate limit exceeded or access denied';
-			} else {
-				error = `Failed to fetch: ${err.message}`;
-			}
-			loading = false;
+			content = decodedContent;
+			originalContent = decodedContent;
+			lastValue = decodedContent;
+		} else if (Array.isArray(fileResponse)) {
+			throw new Error('Path is a directory, not a file');
+		} else {
+			throw new Error('Invalid file type');
 		}
 	}
+
+	async function fetchRepoMetadata(octokit: Octokit) {
+		const { data: repoResponse } = await octokit.rest.repos.get({
+			owner: org,
+			repo: repo
+		});
+
+		repoData = {
+			name: repoResponse.name,
+			fullName: repoResponse.full_name,
+			description: repoResponse.description,
+			defaultBranch: repoResponse.default_branch,
+			isPrivate: repoResponse.private,
+			stars: repoResponse.stargazers_count,
+			forks: repoResponse.forks_count,
+			language: repoResponse.language,
+			updatedAt: repoResponse.updated_at,
+			htmlUrl: repoResponse.html_url
+		};
+	}
+
+	async function checkWritePermission(octokit: Octokit) {
+		try {
+			const { data: userData } = await octokit.rest.users.getAuthenticated();
+
+			// If user is the repo owner, they have write access
+			if (userData.login.toLowerCase() === org.toLowerCase()) {
+				canEdit = true;
+				return;
+			}
+
+			// Otherwise, check collaborator permissions
+			try {
+				const { data: permissionData } = await octokit.rest.repos.getCollaboratorPermissionLevel({
+					owner: org,
+					repo: repo,
+					username: userData.login
+				});
+
+				canEdit =
+					permissionData.permission === 'admin' ||
+					permissionData.permission === 'write' ||
+					permissionData.permission === 'maintain';
+			} catch (err: any) {
+				// If 403, user is not a collaborator
+				canEdit = false;
+			}
+		} catch (err: any) {
+			canEdit = false;
+		}
+	}
+
+	// Fetch GitHub data when auth token changes
+	$effect(() => {
+		loading = true;
+		error = null;
+		canEdit = false;
+
+		const octokit = new Octokit(githubToken ? { auth: githubToken } : undefined);
+
+		Promise.all([
+			fetchFileContent(octokit),
+			fetchRepoMetadata(octokit)
+		])
+			.then(async () => {
+				if (githubToken) {
+					await checkWritePermission(octokit);
+				}
+				loading = false;
+				connect();
+			})
+			.catch((err: any) => {
+				if (err.status === 404) {
+					error = 'File or repository not found';
+				} else if (err.status === 403) {
+					error = 'Rate limit exceeded or access denied';
+				} else {
+					error = err.message || 'Failed to fetch';
+				}
+				loading = false;
+			});
+	});
 
 	function connect() {
 		if (!fileData) return;
@@ -132,6 +192,11 @@
 				}
 
 				case 'change': {
+					// Skip our own changes
+					if (data.connectionId && data.connectionId === myConnectionId) {
+						break;
+					}
+
 					isRemoteUpdate = true;
 					const { from, to, insert } = data.changes;
 					const before = content.slice(0, from);
@@ -201,10 +266,6 @@
 
 
 
-	onMount(() => {
-		fetchGitHubData();
-	});
-
 	function handleCursorChange(position: number) {
 		if (!ws || ws.readyState !== WebSocket.OPEN) {
 			return;
@@ -258,68 +319,49 @@
 	});
 </script>
 
-{#if loading}
-	<div class="container mx-auto max-w-7xl px-4 py-8">
-		<Card>
-			<CardContent class="py-8">
-				<p class="text-center text-muted-foreground">Loading file from GitHub...</p>
-			</CardContent>
-		</Card>
-	</div>
-{:else if error}
-	<div class="container mx-auto max-w-7xl px-4 py-8">
-		<Card class="border-destructive bg-destructive/10">
-			<CardHeader>
-				<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
-			</CardHeader>
-			<CardContent>
-				<p class="text-destructive">{error}</p>
-			</CardContent>
-		</Card>
-	</div>
-{:else if fileData && repoData}
-	<div class="container mx-auto max-w-7xl px-4 py-8">
-		<header class="mb-8 space-y-4">
-			<div class="flex items-start justify-between">
-				<div>
-					<h1 class="mb-2 text-3xl font-bold tracking-tight">
-						{org}/{repo}
-					</h1>
-					{#if repoData.description}
-						<p class="text-sm text-muted-foreground">{repoData.description}</p>
-					{/if}
-				</div>
-
-				<div class="flex items-center gap-2">
-					{#if $session.data}
-						<div class="flex items-center gap-2">
-							<span class="text-sm text-muted-foreground">{$session.data.user.name}</span>
-							<Button
-								onclick={async () => {
-									await authClient.signOut();
-								}}
-								variant="outline"
-								size="sm"
-							>
-								Sign Out
-							</Button>
-						</div>
-					{:else}
-						<Button
-							onclick={async () => {
-								await authClient.signIn.social({
-									provider: 'github',
-									callbackURL: window.location.href,
-								});
-							}}
-							size="sm"
-						>
-							Sign in with GitHub
-						</Button>
-					{/if}
-				</div>
+<div class="container mx-auto max-w-7xl px-4 py-8">
+	<header class="mb-8 space-y-4">
+		<div class="flex items-start justify-between">
+			<div>
+				<h1 class="mb-2 text-3xl font-bold tracking-tight">
+					{org}/{repo}
+				</h1>
+				{#if repoData?.description}
+					<p class="text-sm text-muted-foreground">{repoData.description}</p>
+				{/if}
 			</div>
 
+			<div class="flex items-center gap-2">
+				{#if $session.data}
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-muted-foreground">{$session.data.user.name}</span>
+						<Button
+							onclick={async () => {
+								await authClient.signOut();
+							}}
+							variant="outline"
+							size="sm"
+						>
+							Sign Out
+						</Button>
+					</div>
+				{:else}
+					<Button
+						onclick={async () => {
+							await authClient.signIn.social({
+								provider: 'github',
+								callbackURL: window.location.href,
+							});
+						}}
+						size="sm"
+					>
+						Sign in with GitHub
+					</Button>
+				{/if}
+			</div>
+		</div>
+
+		{#if fileData}
 			<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 				<span class="font-mono">
 					<Badge
@@ -337,9 +379,30 @@
 				<code class="rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
 					>{fileData.sha.substring(0, 7)}</code
 				>
+				{#if $session.data && !canEdit}
+					<Separator orientation="vertical" class="h-4" />
+					<Badge variant="secondary">Read-only</Badge>
+				{/if}
 			</div>
-		</header>
+		{/if}
+	</header>
 
+	{#if loading}
+		<Card>
+			<CardContent class="py-8">
+				<p class="text-center text-muted-foreground">Loading file from GitHub...</p>
+			</CardContent>
+		</Card>
+	{:else if error}
+		<Card class="border-destructive bg-destructive/10">
+			<CardHeader>
+				<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
+			</CardHeader>
+			<CardContent>
+				<p class="text-destructive">{error}</p>
+			</CardContent>
+		</Card>
+	{:else if fileData && repoData}
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-4">
 				<div class="flex items-center gap-3">
@@ -384,9 +447,9 @@
 					onchange={handleEditorChange}
 					oncursorchange={handleCursorChange}
 					remoteCursors={Array.from(remoteCursors.values())}
-					readonly={!$session.data}
+					readonly={!$session.data || !canEdit}
 				/>
 			</CardContent>
 		</Card>
-	</div>
-{/if}
+	{/if}
+</div>
