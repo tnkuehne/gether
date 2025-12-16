@@ -29,7 +29,6 @@
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {
-			// Request initial content and send our content to initialize DO if needed
 			ws?.send(JSON.stringify({ type: 'init', content: fileData.content }));
 		};
 
@@ -38,14 +37,10 @@
 
 			switch (data.type) {
 				case 'init': {
-					// Store our connection ID
 					if (data.connectionId) {
 						myConnectionId = data.connectionId;
-						console.log('[CURSOR] My connection ID:', myConnectionId);
 					}
 
-					// Only update content if DO has content (not empty)
-					// This prevents overwriting GitHub content with empty DO state
 					if (data.content) {
 						isRemoteUpdate = true;
 						content = data.content;
@@ -56,7 +51,6 @@
 				}
 
 				case 'change': {
-					// Apply remote changes
 					isRemoteUpdate = true;
 					const { from, to, insert } = data.changes;
 					const before = content.slice(0, from);
@@ -68,30 +62,18 @@
 				}
 
 				case 'cursor': {
-					console.log('[CURSOR] Received cursor:', {
-						position: data.position,
-						connectionId: data.connectionId,
-						myConnectionId,
-						isOwnCursor: data.connectionId === myConnectionId
-					});
-
-					// Store remote cursor position by connection ID
 					if (data.position !== undefined && data.connectionId && data.connectionId !== myConnectionId) {
 						const color = getCursorColor(data.connectionId);
 						remoteCursors.set(data.connectionId, { position: data.position, color });
 						remoteCursors = new Map(remoteCursors);
-						console.log('[CURSOR] Remote cursors map:', Array.from(remoteCursors.entries()));
 					}
 					break;
 				}
 
 				case 'cursor-leave': {
-					console.log('[CURSOR] Cursor leave:', data.connectionId);
-					// Remove cursor when user disconnects
 					if (data.connectionId) {
 						remoteCursors.delete(data.connectionId);
 						remoteCursors = new Map(remoteCursors);
-						console.log('[CURSOR] Remaining cursors:', Array.from(remoteCursors.entries()));
 					}
 					break;
 				}
@@ -99,7 +81,6 @@
 		};
 
 		ws.onclose = () => {
-			// Attempt reconnection after 2 seconds
 			setTimeout(connect, 2000);
 		};
 
@@ -148,9 +129,6 @@
 			return;
 		}
 
-		console.log('[CURSOR] Sending cursor position:', position);
-
-		// Send cursor position
 		ws.send(JSON.stringify({
 			type: 'cursor',
 			position
@@ -158,7 +136,6 @@
 	}
 
 	function getCursorColor(connectionId: string): string {
-		// Generate a color based on connection ID
 		const colors = [
 			'rgba(59, 130, 246, 0.8)',   // blue
 			'rgba(239, 68, 68, 0.8)',    // red
@@ -169,7 +146,6 @@
 			'rgba(20, 184, 166, 0.8)',   // teal
 		];
 
-		// Simple hash to pick a color
 		let hash = 0;
 		for (let i = 0; i < connectionId.length; i++) {
 			hash = connectionId.charCodeAt(i) + ((hash << 5) - hash);

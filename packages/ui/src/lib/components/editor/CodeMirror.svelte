@@ -63,18 +63,15 @@
 			for (const effect of tr.effects) {
 				if (effect.is(updateRemoteCursorsEffect)) {
 					const cursors = effect.value;
-					console.log('[EDITOR] Processing cursor update effect:', cursors);
 					const widgets = cursors.map((cursor) => {
 						// Clamp position to valid range
 						const pos = Math.min(cursor.position, tr.newDoc.length);
-						console.log('[EDITOR] Creating cursor widget at position:', pos, 'with color:', cursor.color);
 						return Decoration.widget({
 							widget: new CursorWidget(cursor.color),
 							side: 1
 						}).range(pos);
 					});
 					decorations = Decoration.set(widgets);
-					console.log('[EDITOR] Created', widgets.length, 'cursor decorations');
 				}
 			}
 
@@ -84,9 +81,6 @@
 	});
 
 	function initializeEditor(container: HTMLDivElement) {
-		console.log('[EDITOR] Initializing CodeMirror');
-		console.log('[EDITOR] Container element:', container);
-
 		const state = EditorState.create({
 			doc: '',
 			extensions: [
@@ -133,15 +127,11 @@
 			parent: container
 		});
 
-		console.log('[EDITOR] CodeMirror initialized:', editorView);
-		console.log('[EDITOR] Editor DOM:', editorView.dom);
-
 		// Create nested effects to handle reactive updates without re-running the attachment
 		$effect(() => {
 			if (editorView) {
 				const currentContent = editorView.state.doc.toString();
 				if (value !== currentContent) {
-					console.log('[EDITOR] Updating content, length:', value.length);
 					isUpdatingFromRemote = true;
 					editorView.dispatch({
 						changes: {
@@ -157,7 +147,6 @@
 
 		$effect(() => {
 			if (editorView) {
-				console.log('[EDITOR] Updating readonly state:', readonly);
 				editorView.dispatch({
 					effects: StateEffect.reconfigure.of([
 						basicSetup,
@@ -199,9 +188,7 @@
 		});
 
 		$effect.pre(() => {
-			console.log('[EDITOR] Effect running, remoteCursors:', remoteCursors, 'editorView:', !!editorView);
 			if (editorView) {
-				console.log('[EDITOR] Updating remote cursors:', remoteCursors);
 				editorView.dispatch({
 					effects: updateRemoteCursorsEffect.of(remoteCursors)
 				});
@@ -209,7 +196,6 @@
 		});
 
 		return () => {
-			console.log('[EDITOR] Destroying CodeMirror');
 			editorView?.destroy();
 			editorView = null;
 		};
