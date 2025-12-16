@@ -309,7 +309,7 @@
 							onclick={async () => {
 								await authClient.signIn.social({
 									provider: 'github',
-									callbackUrl: window.location.href,
+									callbackURL: window.location.href,
 								});
 							}}
 							size="sm"
@@ -384,6 +384,7 @@
 					onchange={handleEditorChange}
 					oncursorchange={handleCursorChange}
 					remoteCursors={Array.from(remoteCursors.values())}
+					readonly={!$session.data}
 				/>
 			</CardContent>
 		</Card>
