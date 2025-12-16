@@ -8,6 +8,7 @@
 	interface RemoteCursor {
 		position: number;
 		color: string;
+		userName?: string;
 	}
 
 	let {
@@ -30,22 +31,52 @@
 	// Cursor widget for rendering remote cursors
 	class CursorWidget extends WidgetType {
 		color: string;
+		userName?: string;
 
-		constructor(color: string) {
+		constructor(color: string, userName?: string) {
 			super();
 			this.color = color;
+			this.userName = userName;
 		}
 
 		toDOM() {
+			const wrapper = document.createElement('span');
+			wrapper.style.position = 'relative';
+			wrapper.style.display = 'inline';
+			wrapper.style.height = '0';
+			wrapper.style.width = '0';
+
 			const cursor = document.createElement('span');
 			cursor.style.position = 'absolute';
 			cursor.style.borderLeft = `2px solid ${this.color}`;
 			cursor.style.height = '1.2em';
-			cursor.style.marginLeft = '-1px';
+			cursor.style.left = '0';
+			cursor.style.top = '0';
 			cursor.style.pointerEvents = 'none';
 			cursor.style.zIndex = '10';
 			cursor.style.boxShadow = `0 0 4px ${this.color}`;
-			return cursor;
+
+			wrapper.appendChild(cursor);
+
+			if (this.userName) {
+				const label = document.createElement('span');
+				label.textContent = this.userName;
+				label.style.position = 'absolute';
+				label.style.top = '-20px';
+				label.style.left = '2px';
+				label.style.backgroundColor = this.color;
+				label.style.color = 'white';
+				label.style.padding = '2px 6px';
+				label.style.borderRadius = '3px';
+				label.style.fontSize = '11px';
+				label.style.fontWeight = '500';
+				label.style.whiteSpace = 'nowrap';
+				label.style.pointerEvents = 'none';
+				label.style.zIndex = '11';
+				wrapper.appendChild(label);
+			}
+
+			return wrapper;
 		}
 	}
 
@@ -67,7 +98,7 @@
 						// Clamp position to valid range
 						const pos = Math.min(cursor.position, tr.newDoc.length);
 						return Decoration.widget({
-							widget: new CursorWidget(cursor.color),
+							widget: new CursorWidget(cursor.color, cursor.userName),
 							side: 1
 						}).range(pos);
 					});

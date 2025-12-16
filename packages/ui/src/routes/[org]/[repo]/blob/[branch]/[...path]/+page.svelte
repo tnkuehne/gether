@@ -25,7 +25,7 @@
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state('');
-	let remoteCursors = $state<Map<string, { position: number; color: string }>>(new Map());
+	let remoteCursors = $state<Map<string, { position: number; color: string; userName?: string }>>(new Map());
 	let myConnectionId = $state<string>('');
 	let editorRef: any = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
@@ -210,7 +210,11 @@
 				case 'cursor': {
 					if (data.position !== undefined && data.connectionId && data.connectionId !== myConnectionId) {
 						const color = getCursorColor(data.connectionId);
-						remoteCursors.set(data.connectionId, { position: data.position, color });
+						remoteCursors.set(data.connectionId, {
+							position: data.position,
+							color,
+							userName: data.userName
+						});
 						remoteCursors = new Map(remoteCursors);
 					}
 					break;
@@ -273,7 +277,8 @@
 
 		ws.send(JSON.stringify({
 			type: 'cursor',
-			position
+			position,
+			userName: $session.data?.user.name
 		}));
 	}
 

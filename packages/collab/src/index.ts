@@ -173,8 +173,8 @@ export class CollaborativeDocument extends DurableObject<Env> {
 								type: 'cursor',
 								position: data.position,
 								connectionId: attachment?.connectionId,
-								userName: attachment?.userName,
-								userImage: attachment?.userImage
+								userName: data.userName || attachment?.userName,
+								userImage: data.userImage || attachment?.userImage
 							},
 							ws
 						);
