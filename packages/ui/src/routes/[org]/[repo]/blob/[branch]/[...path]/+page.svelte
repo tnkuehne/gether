@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { Card, CardContent, CardHeader } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
-	import { buttonVariants } from '$lib/components/ui/button';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import { onMount, onDestroy } from 'svelte';
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
@@ -17,12 +17,14 @@
 	let error = $state<string | null>(null);
 
 	let content = $state('');
+	let originalContent = $state(''); // Store original GitHub content
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state('');
 	let remoteCursors = $state<Map<string, { position: number; color: string }>>(new Map());
 	let myConnectionId = $state<string>('');
 	let editorRef: any = null;
+	let hasUnsavedChanges = $derived(content !== originalContent);
 
 	async function fetchGitHubData() {
 		try {
@@ -49,6 +51,7 @@
 				};
 
 				content = decodedContent;
+				originalContent = decodedContent;
 				lastValue = decodedContent;
 			} else if (Array.isArray(fileResponse)) {
 				error = 'Path is a directory, not a file';
@@ -228,6 +231,23 @@
 		return colors[Math.abs(hash) % colors.length];
 	}
 
+	function handleReset() {
+		if (confirm('Are you sure you want to reset to the original GitHub content? All unsaved changes will be lost.')) {
+			isRemoteUpdate = true;
+			content = originalContent;
+			lastValue = originalContent;
+			isRemoteUpdate = false;
+
+			// Broadcast the reset to other connected clients
+			if (ws && ws.readyState === WebSocket.OPEN) {
+				ws.send(JSON.stringify({
+					type: 'change',
+					changes: { from: 0, to: lastValue.length, insert: originalContent }
+				}));
+			}
+		}
+	}
+
 	onDestroy(() => {
 		if (ws) {
 			ws.close();
@@ -294,6 +314,15 @@
 				</div>
 
 				<div class="flex items-center gap-2">
+					<Button
+						onclick={handleReset}
+						disabled={!hasUnsavedChanges}
+						variant="ghost"
+						size="sm"
+						title={hasUnsavedChanges ? 'Reset to original GitHub content' : 'No changes to reset'}
+					>
+						Reset
+					</Button>
 					<a
 						href={fileData.downloadUrl}
 						download
