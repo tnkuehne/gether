@@ -4,9 +4,9 @@
 	import { Card, CardContent, CardHeader } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { buttonVariants } from '$lib/components/ui/button';
-	import { Textarea } from '$lib/components/ui/textarea';
 	import { Separator } from '$lib/components/ui/separator';
 	import { onMount, onDestroy } from 'svelte';
+	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
@@ -18,6 +18,9 @@
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state(fileData.content);
+	let remoteCursors = $state<Map<string, { position: number; color: string }>>(new Map());
+	let myConnectionId = $state<string>('');
+	let editorRef: any = null;
 
 	function connect() {
 		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -35,6 +38,12 @@
 
 			switch (data.type) {
 				case 'init': {
+					// Store our connection ID
+					if (data.connectionId) {
+						myConnectionId = data.connectionId;
+						console.log('[CURSOR] My connection ID:', myConnectionId);
+					}
+
 					// Only update content if DO has content (not empty)
 					// This prevents overwriting GitHub content with empty DO state
 					if (data.content) {
@@ -57,6 +66,35 @@
 					isRemoteUpdate = false;
 					break;
 				}
+
+				case 'cursor': {
+					console.log('[CURSOR] Received cursor:', {
+						position: data.position,
+						connectionId: data.connectionId,
+						myConnectionId,
+						isOwnCursor: data.connectionId === myConnectionId
+					});
+
+					// Store remote cursor position by connection ID
+					if (data.position !== undefined && data.connectionId && data.connectionId !== myConnectionId) {
+						const color = getCursorColor(data.connectionId);
+						remoteCursors.set(data.connectionId, { position: data.position, color });
+						remoteCursors = new Map(remoteCursors);
+						console.log('[CURSOR] Remote cursors map:', Array.from(remoteCursors.entries()));
+					}
+					break;
+				}
+
+				case 'cursor-leave': {
+					console.log('[CURSOR] Cursor leave:', data.connectionId);
+					// Remove cursor when user disconnects
+					if (data.connectionId) {
+						remoteCursors.delete(data.connectionId);
+						remoteCursors = new Map(remoteCursors);
+						console.log('[CURSOR] Remaining cursors:', Array.from(remoteCursors.entries()));
+					}
+					break;
+				}
 			}
 		};
 
@@ -70,13 +108,10 @@
 		};
 	}
 
-	function handleInput(event: Event) {
+	function handleEditorChange(newValue: string) {
 		if (isRemoteUpdate || !ws || ws.readyState !== WebSocket.OPEN) {
 			return;
 		}
-
-		const target = (event.target) as HTMLTextAreaElement;
-		const newValue = target.value;
 
 		// Simple diff: find where the change occurred
 		let from = 0;
@@ -102,9 +137,45 @@
 		lastValue = newValue;
 	}
 
+
+
 	onMount(() => {
 		connect();
 	});
+
+	function handleCursorChange(position: number) {
+		if (!ws || ws.readyState !== WebSocket.OPEN) {
+			return;
+		}
+
+		console.log('[CURSOR] Sending cursor position:', position);
+
+		// Send cursor position
+		ws.send(JSON.stringify({
+			type: 'cursor',
+			position
+		}));
+	}
+
+	function getCursorColor(connectionId: string): string {
+		// Generate a color based on connection ID
+		const colors = [
+			'rgba(59, 130, 246, 0.8)',   // blue
+			'rgba(239, 68, 68, 0.8)',    // red
+			'rgba(16, 185, 129, 0.8)',   // green
+			'rgba(245, 158, 11, 0.8)',   // orange
+			'rgba(139, 92, 246, 0.8)',   // purple
+			'rgba(236, 72, 153, 0.8)',   // pink
+			'rgba(20, 184, 166, 0.8)',   // teal
+		];
+
+		// Simple hash to pick a color
+		let hash = 0;
+		for (let i = 0; i < connectionId.length; i++) {
+			hash = connectionId.charCodeAt(i) + ((hash << 5) - hash);
+		}
+		return colors[Math.abs(hash) % colors.length];
+	}
 
 	onDestroy(() => {
 		if (ws) {
@@ -187,12 +258,12 @@
 			<Separator />
 
 			<CardContent class="p-0">
-				<Textarea
+				<CodeMirror
+					bind:this={editorRef}
 					bind:value={content}
-					oninput={handleInput}
-					class="min-h-150 w-full resize-none rounded-none border-0 font-mono text-sm focus-visible:ring-0"
-					placeholder="Edit your markdown/mdx here..."
-					spellcheck="false"
+					onchange={handleEditorChange}
+					oncursorchange={handleCursorChange}
+					remoteCursors={Array.from(remoteCursors.values())}
 				/>
 			</CardContent>
 		</Card>

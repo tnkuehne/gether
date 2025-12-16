@@ -5,13 +5,15 @@ interface Env {
 }
 
 interface Message {
-	type: 'init' | 'change';
+	type: 'init' | 'change' | 'cursor' | 'cursor-leave';
 	content?: string;
 	changes?: {
 		from: number;
 		to: number;
 		insert: string;
 	};
+	position?: number;
+	connectionId?: string;
 }
 
 export class CollaborativeDocument extends DurableObject<Env> {
@@ -69,6 +71,10 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 			switch (data.type) {
 				case 'init': {
+					// Generate a unique connection ID for this client
+					const connectionId = crypto.randomUUID();
+					ws.serializeAttachment({ connectionId });
+
 					// If DO has no content and client sent content, initialize with it
 					if (!this.content && data.content) {
 						this.content = data.content;
@@ -79,7 +85,8 @@ export class CollaborativeDocument extends DurableObject<Env> {
 					ws.send(
 						JSON.stringify({
 							type: 'init',
-							content: this.content
+							content: this.content,
+							connectionId
 						})
 					);
 					break;
@@ -108,6 +115,28 @@ export class CollaborativeDocument extends DurableObject<Env> {
 					}
 					break;
 				}
+
+				case 'cursor': {
+					// Broadcast cursor position to all other clients with connection ID
+					if (data.position !== undefined) {
+						const attachment = ws.deserializeAttachment() as { connectionId: string } | null;
+						console.log('[DO CURSOR] Received cursor position:', {
+							position: data.position,
+							connectionId: attachment?.connectionId,
+							totalConnections: this.ctx.getWebSockets().length
+						});
+						this.broadcast(
+							{
+								type: 'cursor',
+								position: data.position,
+								connectionId: attachment?.connectionId
+							},
+							ws
+						);
+						console.log('[DO CURSOR] Broadcasted to other clients');
+					}
+					break;
+				}
 			}
 		} catch (error) {
 			console.error('WebSocket message error:', error);
@@ -115,6 +144,19 @@ export class CollaborativeDocument extends DurableObject<Env> {
 	}
 
 	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+		// Notify others to remove this cursor
+		const attachment = ws.deserializeAttachment() as { connectionId: string } | null;
+		console.log('[DO CURSOR] WebSocket closing:', {
+			connectionId: attachment?.connectionId,
+			code,
+			reason
+		});
+		if (attachment?.connectionId) {
+			this.broadcast({
+				type: 'cursor-leave',
+				connectionId: attachment.connectionId
+			});
+		}
 		ws.close(code, reason);
 	}
 
@@ -125,15 +167,21 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 	private broadcast(message: Message, exclude?: WebSocket) {
 		const payload = JSON.stringify(message);
+		let sentCount = 0;
 
 		for (const client of this.ctx.getWebSockets()) {
 			if (client !== exclude && client.readyState === WebSocket.OPEN) {
 				try {
 					client.send(payload);
+					sentCount++;
 				} catch (error) {
 					console.error('Broadcast error:', error);
 				}
 			}
+		}
+
+		if (message.type === 'cursor') {
+			console.log('[DO CURSOR] Broadcasted to', sentCount, 'clients');
 		}
 	}
 }
