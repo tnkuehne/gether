@@ -26,6 +26,7 @@
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state('');
 	let remoteCursors = $state<Map<string, { position: number; color: string; userName?: string }>>(new Map());
+	let remoteSelections = $state<Map<string, { from: number; to: number; color: string; userName?: string }>>(new Map());
 	let myConnectionId = $state<string>('');
 	let editorRef: any = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
@@ -216,6 +217,21 @@
 							userName: data.userName
 						});
 						remoteCursors = new Map(remoteCursors);
+
+						// If selection data is included
+						if (data.selection && data.selection.from !== data.selection.to) {
+							remoteSelections.set(data.connectionId, {
+								from: data.selection.from,
+								to: data.selection.to,
+								color,
+								userName: data.userName
+							});
+							remoteSelections = new Map(remoteSelections);
+						} else {
+							// No selection, remove it
+							remoteSelections.delete(data.connectionId);
+							remoteSelections = new Map(remoteSelections);
+						}
 					}
 					break;
 				}
@@ -224,6 +240,8 @@
 					if (data.connectionId) {
 						remoteCursors.delete(data.connectionId);
 						remoteCursors = new Map(remoteCursors);
+						remoteSelections.delete(data.connectionId);
+						remoteSelections = new Map(remoteSelections);
 					}
 					break;
 				}
@@ -270,7 +288,7 @@
 
 
 
-	function handleCursorChange(position: number) {
+	function handleCursorChange(position: number, selection?: { from: number; to: number }) {
 		if (!ws || ws.readyState !== WebSocket.OPEN) {
 			return;
 		}
@@ -278,6 +296,7 @@
 		ws.send(JSON.stringify({
 			type: 'cursor',
 			position,
+			selection,
 			userName: $session.data?.user.name
 		}));
 	}
@@ -452,6 +471,7 @@
 					onchange={handleEditorChange}
 					oncursorchange={handleCursorChange}
 					remoteCursors={Array.from(remoteCursors.values())}
+					remoteSelections={Array.from(remoteSelections.values())}
 					readonly={!$session.data || !canEdit}
 				/>
 			</CardContent>

@@ -13,6 +13,10 @@ interface Message {
 		insert: string;
 	};
 	position?: number;
+	selection?: {
+		from: number;
+		to: number;
+	};
 	connectionId?: string;
 	user?: {
 		name: string;
@@ -172,6 +176,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 							{
 								type: 'cursor',
 								position: data.position,
+								selection: data.selection,
 								connectionId: attachment?.connectionId,
 								userName: data.userName || attachment?.userName,
 								userImage: data.userImage || attachment?.userImage

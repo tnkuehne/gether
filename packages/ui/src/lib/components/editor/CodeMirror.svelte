@@ -11,17 +11,26 @@
 		userName?: string;
 	}
 
+	interface RemoteSelection {
+		from: number;
+		to: number;
+		color: string;
+		userName?: string;
+	}
+
 	let {
 		value = $bindable(''),
 		onchange = undefined as ((value: string) => void) | undefined,
-		oncursorchange = undefined as ((position: number) => void) | undefined,
+		oncursorchange = undefined as ((position: number, selection?: { from: number; to: number }) => void) | undefined,
 		remoteCursors = [] as RemoteCursor[],
+		remoteSelections = [] as RemoteSelection[],
 		readonly = false
 	}: {
 		value?: string;
 		onchange?: (value: string) => void;
-		oncursorchange?: (position: number) => void;
+		oncursorchange?: (position: number, selection?: { from: number; to: number }) => void;
 		remoteCursors?: RemoteCursor[];
+		remoteSelections?: RemoteSelection[];
 		readonly?: boolean;
 	} = $props();
 
@@ -83,6 +92,9 @@
 	// Effect to update remote cursors
 	const updateRemoteCursorsEffect = StateEffect.define<RemoteCursor[]>();
 
+	// Effect to update remote selections
+	const updateRemoteSelectionsEffect = StateEffect.define<RemoteSelection[]>();
+
 	// Field to store remote cursors decorations
 	const remoteCursorsField = StateField.define<DecorationSet>({
 		create() {
@@ -111,6 +123,36 @@
 		provide: (f) => EditorView.decorations.from(f)
 	});
 
+	// Field to store remote selections decorations
+	const remoteSelectionsField = StateField.define<DecorationSet>({
+		create() {
+			return Decoration.none;
+		},
+		update(decorations, tr) {
+			decorations = decorations.map(tr.changes);
+
+			for (const effect of tr.effects) {
+				if (effect.is(updateRemoteSelectionsEffect)) {
+					const selections = effect.value;
+					const marks = selections.map((selection) => {
+						// Clamp positions to valid range
+						const from = Math.min(selection.from, tr.newDoc.length);
+						const to = Math.min(selection.to, tr.newDoc.length);
+						return Decoration.mark({
+							attributes: {
+								style: `background-color: ${selection.color.replace('0.8', '0.2')};`
+							}
+						}).range(from, to);
+					});
+					decorations = Decoration.set(marks);
+				}
+			}
+
+			return decorations;
+		},
+		provide: (f) => EditorView.decorations.from(f)
+	});
+
 	function initializeEditor(container: HTMLDivElement) {
 		const state = EditorState.create({
 			doc: '',
@@ -118,6 +160,7 @@
 				basicSetup,
 				markdown(),
 				remoteCursorsField,
+				remoteSelectionsField,
 				EditorView.updateListener.of((update) => {
 					if (update.docChanged && !isUpdatingFromRemote) {
 						const newValue = update.state.doc.toString();
@@ -127,9 +170,14 @@
 					}
 					// Track cursor/selection changes
 					if (update.selectionSet) {
-						const cursorPos = update.state.selection.main.head;
+						const selection = update.state.selection.main;
+						const cursorPos = selection.head;
+						// Send selection range if text is selected
+						const selectionRange = selection.from !== selection.to
+							? { from: selection.from, to: selection.to }
+							: undefined;
 						// Access current callback from props
-						oncursorchange?.(cursorPos);
+						oncursorchange?.(cursorPos, selectionRange);
 					}
 				}),
 				EditorView.theme({
@@ -183,6 +231,7 @@
 						basicSetup,
 						markdown(),
 						remoteCursorsField,
+						remoteSelectionsField,
 						EditorView.updateListener.of((update) => {
 							if (update.docChanged && !isUpdatingFromRemote) {
 								const newValue = update.state.doc.toString();
@@ -190,8 +239,12 @@
 								onchange?.(newValue);
 							}
 							if (update.selectionSet) {
-								const cursorPos = update.state.selection.main.head;
-								oncursorchange?.(cursorPos);
+								const selection = update.state.selection.main;
+								const cursorPos = selection.head;
+								const selectionRange = selection.from !== selection.to
+									? { from: selection.from, to: selection.to }
+									: undefined;
+								oncursorchange?.(cursorPos, selectionRange);
 							}
 						}),
 						EditorView.editable.of(!readonly),
@@ -222,6 +275,14 @@
 			if (editorView) {
 				editorView.dispatch({
 					effects: updateRemoteCursorsEffect.of(remoteCursors)
+				});
+			}
+		});
+
+		$effect.pre(() => {
+			if (editorView) {
+				editorView.dispatch({
+					effects: updateRemoteSelectionsEffect.of(remoteSelections)
 				});
 			}
 		});
