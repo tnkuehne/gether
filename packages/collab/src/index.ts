@@ -28,6 +28,7 @@ interface Message {
 
 export class CollaborativeDocument extends DurableObject<Env> {
 	private content: string = '';
+	private checkpointScheduled: boolean = false;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -140,8 +141,11 @@ export class CollaborativeDocument extends DurableObject<Env> {
 						const after = this.content.slice(changes.to);
 						this.content = before + changes.insert + after;
 
-						// Persist to storage
-						this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
+						// Schedule checkpoint alarm if not already scheduled
+						if (!this.checkpointScheduled) {
+							this.ctx.storage.setAlarm(Date.now() + 30000);
+							this.checkpointScheduled = true;
+						}
 
 						// Get connection ID from attachment
 						const attachment = ws.deserializeAttachment() as {
@@ -205,11 +209,36 @@ export class CollaborativeDocument extends DurableObject<Env> {
 				connectionId: attachment.connectionId
 			});
 		}
+
+		// Check if this was the last client
+		const remainingClients = this.ctx.getWebSockets().filter((c) => c !== ws);
+		if (remainingClients.length === 0) {
+			// Persist content to SQLite before hibernation
+			this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
+
+			// Cancel any pending checkpoint alarm
+			if (this.checkpointScheduled) {
+				this.ctx.storage.deleteAlarm();
+				this.checkpointScheduled = false;
+			}
+		}
 	}
 
 	async webSocketError(ws: WebSocket, error: unknown) {
 		console.error('WebSocket error:', error);
 		ws.close(1011, 'WebSocket error');
+	}
+
+	async alarm() {
+		// Persist content to SQLite
+		this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
+		this.checkpointScheduled = false;
+
+		// Reschedule if clients are still connected
+		if (this.ctx.getWebSockets().length > 0) {
+			this.ctx.storage.setAlarm(Date.now() + 30000);
+			this.checkpointScheduled = true;
+		}
 	}
 
 	private broadcast(message: Message, exclude?: WebSocket) {
