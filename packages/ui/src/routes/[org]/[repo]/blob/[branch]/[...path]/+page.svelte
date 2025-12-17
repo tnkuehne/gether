@@ -489,16 +489,16 @@
 						>
 							Commit
 						</Button>
+						<Button
+							onclick={handleReset}
+							disabled={!hasUnsavedChanges}
+							variant="ghost"
+							size="sm"
+							title={hasUnsavedChanges ? 'Reset to original GitHub content' : 'No changes to reset'}
+						>
+							Reset
+						</Button>
 					{/if}
-					<Button
-						onclick={handleReset}
-						disabled={!hasUnsavedChanges}
-						variant="ghost"
-						size="sm"
-						title={hasUnsavedChanges ? 'Reset to original GitHub content' : 'No changes to reset'}
-					>
-						Reset
-					</Button>
 					<a
 						href={fileData.downloadUrl}
 						download
