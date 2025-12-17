@@ -8,6 +8,12 @@ export const GET: RequestHandler = async ({ params, platform, request, locals })
     return new Response('Unauthorized', { status: 401 });
   }
 
+  const { success } = await platform!.env.WEBSOCKET_RATE_LIMITER.limit({ key: locals.user.id })
+
+  if (!success) {
+    return new Response(`429 Failure – rate limit exceeded`, { status: 429 })
+  }
+
 	const { org, repo, branch } = params;
 	const path = params.path;
 

@@ -23,5 +23,15 @@
 				"script_name": "collab"
 			}
 		]
-	}
+	},
+	"ratelimits": [
+		{
+			"name": "WEBSOCKET_RATE_LIMITER",
+			"namespace_id": "1001",
+			"simple": {
+				"limit": 20,
+				"period": 60
+			}
+		}
+	]
 }
