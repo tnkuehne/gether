@@ -8,7 +8,13 @@
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
 	import { Octokit } from 'octokit';
 	import { authClient } from '$lib/auth-client';
-	import { hasGitHubAppInstalled, GITHUB_APP_INSTALL_URL } from '$lib/github-app';
+	import {
+		hasGitHubAppInstalled,
+		GITHUB_APP_INSTALL_URL,
+		fetchFileContent,
+		fetchRepoMetadata,
+		checkWritePermission
+	} from '$lib/github-app';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
@@ -60,87 +66,6 @@
 			});
 	});
 
-	async function fetchFileContent(octokit: Octokit) {
-		const { data: fileResponse } = await octokit.rest.repos.getContent({
-			owner: org,
-			repo: repo,
-			path: path,
-			ref: branch
-		});
-
-		if ('content' in fileResponse && fileResponse.type === 'file') {
-			const decodedContent = atob(fileResponse.content);
-
-			fileData = {
-				content: decodedContent,
-				url: fileResponse.html_url,
-				downloadUrl: fileResponse.download_url,
-				sha: fileResponse.sha,
-				size: fileResponse.size,
-				name: fileResponse.name
-			};
-
-			content = decodedContent;
-			originalContent = decodedContent;
-			lastValue = decodedContent;
-		} else if (Array.isArray(fileResponse)) {
-			throw new Error('Path is a directory, not a file');
-		} else {
-			throw new Error('Invalid file type');
-		}
-	}
-
-	async function fetchRepoMetadata(octokit: Octokit) {
-		const { data: repoResponse } = await octokit.rest.repos.get({
-			owner: org,
-			repo: repo
-		});
-
-		repoData = {
-			name: repoResponse.name,
-			fullName: repoResponse.full_name,
-			description: repoResponse.description,
-			defaultBranch: repoResponse.default_branch,
-			isPrivate: repoResponse.private,
-			stars: repoResponse.stargazers_count,
-			forks: repoResponse.forks_count,
-			language: repoResponse.language,
-			updatedAt: repoResponse.updated_at,
-			htmlUrl: repoResponse.html_url
-		};
-	}
-
-	async function checkWritePermission(octokit: Octokit) {
-		try {
-			const { data: userData } = await octokit.rest.users.getAuthenticated();
-
-			// If user is the repo owner, they have write access
-			if (userData.login.toLowerCase() === org.toLowerCase()) {
-				canEdit = true;
-				return;
-			}
-
-			// Otherwise, check collaborator permissions
-			try {
-				const { data: permissionData } = await octokit.rest.repos.getCollaboratorPermissionLevel({
-					owner: org,
-					repo: repo,
-					username: userData.login
-				});
-
-				canEdit =
-					permissionData.permission === 'admin' ||
-					permissionData.permission === 'write' ||
-					permissionData.permission === 'maintain';
-			} catch (err: any) {
-				// If 403, user is not a collaborator
-				canEdit = false;
-			}
-		} catch (err: any) {
-			canEdit = false;
-		}
-	}
-
 	// Fetch GitHub data when auth token changes
 	$effect(() => {
 		// Skip if we're not authenticated yet (token still loading)
@@ -156,12 +81,18 @@
 		const octokit = new Octokit(githubToken ? { auth: githubToken } : undefined);
 
 		Promise.all([
-			fetchFileContent(octokit),
-			fetchRepoMetadata(octokit)
+			fetchFileContent(octokit, org, repo, path, branch),
+			fetchRepoMetadata(octokit, org, repo)
 		])
-			.then(async () => {
+			.then(async ([file, repoMeta]) => {
+				fileData = file;
+				content = file.content;
+				originalContent = file.content;
+				lastValue = file.content;
+				repoData = repoMeta;
+
 				if (githubToken) {
-					await checkWritePermission(octokit);
+					canEdit = await checkWritePermission(octokit, org, repo);
 				}
 				loading = false;
 				connect();

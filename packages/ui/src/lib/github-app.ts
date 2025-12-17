@@ -28,3 +28,95 @@ export async function hasGitHubAppInstalled(userAccessToken: string): Promise<bo
 		return false;
 	}
 }
+
+/**
+ * Fetch file content from GitHub repository
+ */
+export async function fetchFileContent(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	path: string,
+	branch: string
+) {
+	const { data: fileResponse } = await octokit.rest.repos.getContent({
+		owner: org,
+		repo: repo,
+		path: path,
+		ref: branch
+	});
+
+	if ('content' in fileResponse && fileResponse.type === 'file') {
+		const decodedContent = atob(fileResponse.content);
+
+		return {
+			content: decodedContent,
+			url: fileResponse.html_url,
+			downloadUrl: fileResponse.download_url,
+			sha: fileResponse.sha,
+			size: fileResponse.size,
+			name: fileResponse.name
+		};
+	} else if (Array.isArray(fileResponse)) {
+		throw new Error('Path is a directory, not a file');
+	} else {
+		throw new Error('Invalid file type');
+	}
+}
+
+/**
+ * Fetch repository metadata from GitHub
+ */
+export async function fetchRepoMetadata(octokit: Octokit, org: string, repo: string) {
+	const { data: repoResponse } = await octokit.rest.repos.get({
+		owner: org,
+		repo: repo
+	});
+
+	return {
+		name: repoResponse.name,
+		fullName: repoResponse.full_name,
+		description: repoResponse.description,
+		defaultBranch: repoResponse.default_branch,
+		isPrivate: repoResponse.private,
+		stars: repoResponse.stargazers_count,
+		forks: repoResponse.forks_count,
+		language: repoResponse.language,
+		updatedAt: repoResponse.updated_at,
+		htmlUrl: repoResponse.html_url
+	};
+}
+
+/**
+ * Check if the authenticated user has write permission to the repository
+ */
+export async function checkWritePermission(octokit: Octokit, org: string, repo: string) {
+	try {
+		const { data: userData } = await octokit.rest.users.getAuthenticated();
+
+		// If user is the repo owner, they have write access
+		if (userData.login.toLowerCase() === org.toLowerCase()) {
+			return true;
+		}
+
+		// Otherwise, check collaborator permissions
+		try {
+			const { data: permissionData } = await octokit.rest.repos.getCollaboratorPermissionLevel({
+				owner: org,
+				repo: repo,
+				username: userData.login
+			});
+
+			return (
+				permissionData.permission === 'admin' ||
+				permissionData.permission === 'write' ||
+				permissionData.permission === 'maintain'
+			);
+		} catch (err: any) {
+			// If 403, user is not a collaborator
+			return false;
+		}
+	} catch (err: any) {
+		return false;
+	}
+}
