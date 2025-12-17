@@ -4,6 +4,9 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Field from '$lib/components/ui/field';
+	import { Input } from '$lib/components/ui/input';
 	import { onDestroy } from 'svelte';
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
 	import { Octokit } from 'octokit';
@@ -13,7 +16,8 @@
 		GITHUB_APP_INSTALL_URL,
 		fetchFileContent,
 		fetchRepoMetadata,
-		checkWritePermission
+		checkWritePermission,
+		commitFile
 	} from '$lib/github-app';
 
 	const { org, repo, branch } = $derived(page.params);
@@ -39,6 +43,12 @@
 	let myConnectionId = $state<string>('');
 	let editorRef: any = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
+
+	// Commit dialog state
+	let commitDialogOpen = $state(false);
+	let commitMessage = $state('');
+	let isCommitting = $state(false);
+	let commitError = $state<string | null>(null);
 
 	// Get GitHub access token from Better Auth (basic OAuth for login)
 	let githubToken = $state<string | undefined>(undefined);
@@ -291,6 +301,47 @@
 		}
 	}
 
+	async function handleCommit() {
+		if (!githubToken || !fileData || !commitMessage.trim()) {
+			return;
+		}
+
+		console.log("token ", githubToken)
+
+		isCommitting = true;
+		commitError = null;
+
+		try {
+			const octokit = new Octokit({ auth: githubToken });
+			const result = await commitFile(
+				octokit,
+				org,
+				repo,
+				path,
+				branch,
+				content,
+				commitMessage.trim(),
+				fileData.sha
+			);
+
+			// Update file data with new SHA
+			fileData.sha = result.sha;
+			originalContent = content;
+			commitMessage = '';
+			commitDialogOpen = false;
+		} catch (err: any) {
+			if (err.status === 409) {
+				commitError = 'Conflict: The file has been modified on GitHub. Please refresh and try again.';
+			} else if (err.status === 422) {
+				commitError = 'The file content is unchanged or the commit message is invalid.';
+			} else {
+				commitError = err.message || 'Failed to commit changes';
+			}
+		} finally {
+			isCommitting = false;
+		}
+	}
+
 	onDestroy(() => {
 		if (ws) {
 			ws.close();
@@ -424,6 +475,16 @@
 				</div>
 
 				<div class="flex items-center gap-2">
+					{#if canEdit}
+						<Button
+							onclick={() => { commitDialogOpen = true; }}
+							disabled={!hasUnsavedChanges}
+							size="sm"
+							title={hasUnsavedChanges ? 'Commit changes to GitHub' : 'No changes to commit'}
+						>
+							Commit
+						</Button>
+					{/if}
 					<Button
 						onclick={handleReset}
 						disabled={!hasUnsavedChanges}
@@ -467,3 +528,45 @@
 		</Card>
 	{/if}
 </div>
+
+<Dialog.Root bind:open={commitDialogOpen}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Commit Changes</Dialog.Title>
+			<Dialog.Description>
+				Commit your changes to <span class="font-mono text-foreground">{branch}</span> branch.
+			</Dialog.Description>
+		</Dialog.Header>
+		<Field.Field data-invalid={!!commitError}>
+			<Field.Label for="commit-message">Commit message</Field.Label>
+			<Input
+				id="commit-message"
+				bind:value={commitMessage}
+				placeholder="Update {path.split('/').pop()}"
+				aria-invalid={!!commitError}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' && commitMessage.trim() && !isCommitting) {
+						handleCommit();
+					}
+				}}
+			/>
+			<Field.Description>
+				Describe the changes you made to this file.
+			</Field.Description>
+			{#if commitError}
+				<Field.Error>{commitError}</Field.Error>
+			{/if}
+		</Field.Field>
+		<Dialog.Footer>
+			<Button variant="outline" onclick={() => { commitDialogOpen = false; }}>
+				Cancel
+			</Button>
+			<Button
+				onclick={handleCommit}
+				disabled={!commitMessage.trim() || isCommitting}
+			>
+				{isCommitting ? 'Committing...' : 'Commit'}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>

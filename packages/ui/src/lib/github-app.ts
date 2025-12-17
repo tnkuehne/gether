@@ -88,6 +88,36 @@ export async function fetchRepoMetadata(octokit: Octokit, org: string, repo: str
 }
 
 /**
+ * Commit a file to the repository
+ */
+export async function commitFile(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	path: string,
+	branch: string,
+	content: string,
+	message: string,
+	sha: string
+) {
+	const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+		owner: org,
+		repo: repo,
+		path: path,
+		message: message,
+		content: btoa(content),
+		sha: sha,
+		branch: branch
+	});
+
+	return {
+		sha: data.content?.sha,
+		commitSha: data.commit.sha,
+		commitUrl: data.commit.html_url
+	};
+}
+
+/**
  * Check if the authenticated user has write permission to the repository
  */
 export async function checkWritePermission(octokit: Octokit, org: string, repo: string) {
