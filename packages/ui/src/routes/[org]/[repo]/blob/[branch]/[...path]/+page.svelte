@@ -8,6 +8,7 @@
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
 	import { Octokit } from 'octokit';
 	import { authClient } from '$lib/auth-client';
+	import { hasGitHubAppInstalled, GITHUB_APP_INSTALL_URL } from '$lib/github-app';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
@@ -20,7 +21,6 @@
 	let error = $state<string | null>(null);
 	let canEdit = $state(false);
 	let needsGitHubApp = $state(false);
-	let gitHubAppInstallUrl = $state<string | null>(null);
 	let hasGitHubApp = $state(false);
 
 	let content = $state('');
@@ -37,22 +37,6 @@
 	// Get GitHub access token from Better Auth (basic OAuth for login)
 	let githubToken = $state<string | undefined>(undefined);
 
-	// Check GitHub App installation status
-	async function checkGitHubAppStatus() {
-		if (!$session.data) return;
-
-		try {
-			const response = await fetch('/api/github-app');
-			if (response.ok) {
-				const data = await response.json();
-				hasGitHubApp = data.installed;
-				gitHubAppInstallUrl = data.installUrl;
-			}
-		} catch (err) {
-			console.error('Failed to check GitHub App status:', err);
-		}
-	}
-
 	$effect(() => {
 		if (!$session.data) {
 			githubToken = undefined;
@@ -60,13 +44,15 @@
 			return;
 		}
 
-		// Check GitHub App installation status
-		checkGitHubAppStatus();
-
 		// Get OAuth token
 		authClient.getAccessToken({ providerId: 'github' })
-			.then(response => {
+			.then(async response => {
 				githubToken = response?.data?.accessToken;
+
+				// Check GitHub App installation status
+				if (githubToken) {
+					hasGitHubApp = await hasGitHubAppInstalled(githubToken);
+				}
 			})
 			.catch((err) => {
 				console.error('getAccessToken error:', err);
@@ -462,7 +448,7 @@
 			</CardHeader>
 			<CardContent>
 				<p class="text-destructive">{error}</p>
-				{#if needsGitHubApp && gitHubAppInstallUrl}
+				{#if needsGitHubApp}
 					<div class="mt-4 space-y-2">
 						<p class="text-sm text-muted-foreground">
 							{#if hasGitHubApp}
@@ -487,21 +473,13 @@
 									const oauthUrl = new URL(response.data.url);
 									const state = oauthUrl.searchParams.get('state');
 
-									if (state && gitHubAppInstallUrl) {
-										// Append state to GitHub App install URL
-										window.location.href = `${gitHubAppInstallUrl}?state=${state}`;
-									}
+									window.location.href = `${GITHUB_APP_INSTALL_URL}?state=${state}`;
+
 								}
 							}}
 						>
 							{hasGitHubApp ? 'Configure GitHub App' : 'Install GitHub App'}
 						</Button>
-					</div>
-				{:else if needsGitHubApp}
-					<div class="mt-4">
-						<p class="text-sm text-muted-foreground">
-							GitHub App is not configured. Please set GITHUB_APP_ID, GITHUB_APP_SLUG, and GITHUB_APP_PRIVATE_KEY.
-						</p>
 					</div>
 				{/if}
 			</CardContent>
