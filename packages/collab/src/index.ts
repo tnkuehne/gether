@@ -192,7 +192,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		}
 	}
 
-	async webSocketClose(ws: WebSocket, code: number, reason: string) {
+	async webSocketClose(ws: WebSocket) {
 		const attachment = ws.deserializeAttachment() as {
 			connectionId: string;
 			userName?: string;
@@ -205,7 +205,6 @@ export class CollaborativeDocument extends DurableObject<Env> {
 				connectionId: attachment.connectionId
 			});
 		}
-		ws.close(code, reason);
 	}
 
 	async webSocketError(ws: WebSocket, error: unknown) {
