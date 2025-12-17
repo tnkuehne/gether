@@ -130,6 +130,9 @@
 	function connect() {
 		if (!fileData) return;
 
+		// Only connect if user is logged in
+		if (!$session.data) return;
+
 		// Close existing connection before creating a new one
 		if (ws) {
 			ws.onclose = null; // Prevent reconnect logic
@@ -219,7 +222,10 @@
 		};
 
 		ws.onclose = () => {
-			setTimeout(connect, 2000);
+			// Only reconnect if still logged in
+			if ($session.data) {
+				setTimeout(connect, 2000);
+			}
 		};
 
 		ws.onerror = (error) => {

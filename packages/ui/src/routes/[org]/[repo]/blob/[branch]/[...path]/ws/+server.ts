@@ -1,6 +1,11 @@
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ params, platform, request }) => {
+export const GET: RequestHandler = async ({ params, platform, request, locals }) => {
+
+  if (!locals.user) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
 	const { org, repo, branch } = params;
 	const path = params.path;
 
