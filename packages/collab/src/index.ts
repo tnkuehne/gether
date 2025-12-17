@@ -192,7 +192,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		}
 	}
 
-	async webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean) {
+	async webSocketClose(ws: WebSocket, code: number, reason: string) {
 		const attachment = ws.deserializeAttachment() as {
 			connectionId: string;
 			userName?: string;
@@ -217,6 +217,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		const payload = JSON.stringify(message);
 
 		for (const client of this.ctx.getWebSockets()) {
+			if (client === exclude) continue;
 			if (client.readyState === WebSocket.OPEN) {
 				try {
 					client.send(payload);
@@ -230,8 +231,6 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 export default {
 	async fetch(): Promise<Response> {
-		return new Response('Collab service running. Use WebSocket endpoints.', {
-			status: 200
-		});
+		return new Response();
 	}
 } satisfies ExportedHandler<Env>;

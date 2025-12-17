@@ -36,6 +36,19 @@
 
 	let editorView: EditorView | null = null;
 	let isUpdatingFromRemote = false;
+	let pendingRemoteChanges: Array<{ from: number; to: number; insert: string }> = [];
+
+	export function applyRemoteChange(change: { from: number; to: number; insert: string }) {
+		if (editorView) {
+			isUpdatingFromRemote = true;
+			editorView.dispatch({
+				changes: change
+			});
+			// Update value to match so the $effect doesn't trigger a full replacement
+			value = editorView.state.doc.toString();
+			isUpdatingFromRemote = false;
+		}
+	}
 
 	// Cursor widget for rendering remote cursors
 	class CursorWidget extends WidgetType {

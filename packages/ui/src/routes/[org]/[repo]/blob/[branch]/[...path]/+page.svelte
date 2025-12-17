@@ -130,6 +130,13 @@
 	function connect() {
 		if (!fileData) return;
 
+		// Close existing connection before creating a new one
+		if (ws) {
+			ws.onclose = null; // Prevent reconnect logic
+			ws.close();
+			ws = null;
+		}
+
 		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
 
@@ -163,13 +170,11 @@
 						break;
 					}
 
-					isRemoteUpdate = true;
 					const { from, to, insert } = data.changes;
-					const before = content.slice(0, from);
-					const after = content.slice(to);
-					content = before + insert + after;
+					// Apply incremental change directly to CodeMirror
+					// This also updates the bound content value
+					editorRef?.applyRemoteChange({ from, to, insert });
 					lastValue = content;
-					isRemoteUpdate = false;
 					break;
 				}
 
