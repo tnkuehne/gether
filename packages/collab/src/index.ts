@@ -26,6 +26,8 @@ interface Message {
 	userImage?: string;
 }
 
+const MAX_MESSAGE_SIZE = 65536; // 64KB - generous limit for collaborative text editor
+
 export class CollaborativeDocument extends DurableObject<Env> {
 	private content: string = '';
 	private checkpointScheduled: boolean = false;
@@ -86,6 +88,13 @@ export class CollaborativeDocument extends DurableObject<Env> {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+		// Check message size before parsing to prevent memory exhaustion
+		const messageSize = typeof message === 'string' ? message.length : message.byteLength;
+		if (messageSize > MAX_MESSAGE_SIZE) {
+			ws.close(1009, 'Message too big');
+			return;
+		}
+
 		try {
 			const data = JSON.parse(message.toString()) as Message;
 
