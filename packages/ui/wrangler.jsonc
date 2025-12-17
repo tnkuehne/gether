@@ -33,5 +33,9 @@
 				"period": 60
 			}
 		}
-	]
+	],
+	"vars": {
+		"PUBLIC_GITHUB_APP_ID": 2484880,
+		"PUBLIC_GITHUB_APP_SLUG": "gether-app"
+	}
 }
