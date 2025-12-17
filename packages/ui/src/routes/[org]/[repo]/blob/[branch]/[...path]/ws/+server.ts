@@ -1,4 +1,6 @@
 import type { RequestHandler } from './$types';
+import { auth } from '$lib/server/auth';
+import { Octokit } from 'octokit';
 
 export const GET: RequestHandler = async ({ params, platform, request, locals }) => {
 
@@ -13,6 +15,32 @@ export const GET: RequestHandler = async ({ params, platform, request, locals })
 	const upgradeHeader = request.headers.get('Upgrade');
 	if (upgradeHeader !== 'websocket') {
 		return new Response('Expected WebSocket', { status: 426 });
+	}
+
+	// Get GitHub access token to verify repository access
+	const tokenResponse = await auth.api.getAccessToken({
+		body: {
+			providerId: 'github',
+		},
+		headers: request.headers,
+	});
+
+	if (!tokenResponse?.accessToken) {
+		return new Response('Failed to get GitHub token', { status: 401 });
+	}
+
+	// Verify user has access to this repository
+	const octokit = new Octokit({ auth: tokenResponse.accessToken });
+	try {
+		await octokit.rest.repos.get({
+			owner: org,
+			repo: repo,
+		});
+	} catch (error: any) {
+		if (error.status === 404 || error.status === 403) {
+			return new Response('Repository not found or access denied', { status: 403 });
+		}
+		return new Response('Failed to verify repository access', { status: 500 });
 	}
 
 	// Create deterministic ID from file path
