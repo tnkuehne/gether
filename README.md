@@ -1,4 +1,4 @@
-# Gether Monorepo
+# Gether
 
 This is a monorepo for Gether, containing multiple Cloudflare Workers and applications.
 
