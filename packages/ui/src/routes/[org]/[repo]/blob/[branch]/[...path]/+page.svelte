@@ -59,11 +59,18 @@
 	let commitError = $state<string | null>(null);
 
 	onMount(() => {
-		// Connect WebSocket if we have file data
-		if (fileData) {
-			connect();
-		}
-	});
+        if (fileData && $session.data) {
+            connect();
+        }
+    });
+
+    $effect(() => {
+        // Re-connect when session becomes available (if not already connected)
+        if (fileData && $session.data && !ws) {
+            connect();
+        }
+    });
+
 
 	function connect() {
 		if (!fileData) return;
