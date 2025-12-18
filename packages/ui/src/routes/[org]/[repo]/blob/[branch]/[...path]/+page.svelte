@@ -18,6 +18,7 @@
 	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from '$lib/components/ui/resizable';
 	import { Streamdown } from 'svelte-streamdown';
 	import type { PageProps } from './$types.js';
+	import posthog from 'posthog-js'
 
 	const { data }: PageProps = $props();
 
@@ -170,9 +171,19 @@
 		};
 	}
 
+	let hasStartedEditing = $state(false);
+
 	function handleEditorChange(newValue: string) {
 		if (isRemoteUpdate || !ws || ws.readyState !== WebSocket.OPEN) {
 			return;
+		}
+
+		// Capture PostHog event when user starts editing
+		if (!hasStartedEditing) {
+			hasStartedEditing = true;
+			posthog.capture('file_edit_started', {
+				fileType: path?.split('.').pop(),
+			});
 		}
 
 		// Simple diff: find where the change occurred

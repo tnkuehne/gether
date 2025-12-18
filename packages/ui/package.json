@@ -35,8 +35,10 @@
 		"mode-watcher": "^1.1.0",
 		"octokit": "^5.0.5",
 		"paneforge": "^1.0.2",
+		"posthog-js": "^1.309.1",
 		"svelte": "^5.43.8",
 		"svelte-check": "^4.3.4",
+		"svelte-streamdown": "^3.0.1",
 		"tailwind-merge": "^3.4.0",
 		"tailwind-variants": "^3.2.2",
 		"tailwindcss": "^4.1.17",
@@ -45,7 +47,6 @@
 		"valibot": "^1.2.0",
 		"vaul-svelte": "1.0.0-next.7",
 		"vite": "^7.2.2",
-		"wrangler": "^4.54.0",
-		"svelte-streamdown": "^3.0.1"
+		"wrangler": "^4.54.0"
 	}
 }
