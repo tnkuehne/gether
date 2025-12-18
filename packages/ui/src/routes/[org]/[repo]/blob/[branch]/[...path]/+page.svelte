@@ -19,9 +19,17 @@
 		checkWritePermission,
 		commitFile
 	} from '$lib/github-app';
+	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from '$lib/components/ui/resizable';
+	import { Streamdown } from 'svelte-streamdown';
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
+
+	// Check if file is markdown
+	const isMarkdown = $derived(
+		path.endsWith('.md') || path.endsWith('.markdown') || path.endsWith('.mdx')
+	);
+	let showPreview = $state(true);
 
 	const session = authClient.useSession();
 
@@ -486,6 +494,16 @@
 				</div>
 
 				<div class="flex items-center gap-2">
+					{#if isMarkdown}
+						<Button
+							onclick={() => { showPreview = !showPreview; }}
+							variant={showPreview ? 'secondary' : 'ghost'}
+							size="sm"
+							title={showPreview ? 'Hide preview' : 'Show preview'}
+						>
+							{showPreview ? 'Hide Preview' : 'Show Preview'}
+						</Button>
+					{/if}
 					{#if canEdit}
 						<Button
 							onclick={() => { commitDialogOpen = true; }}
@@ -526,15 +544,40 @@
 			<Separator />
 
 			<CardContent class="p-0">
-				<CodeMirror
-					bind:this={editorRef}
-					bind:value={content}
-					onchange={handleEditorChange}
-					oncursorchange={handleCursorChange}
-					remoteCursors={Array.from(remoteCursors.values())}
-					remoteSelections={Array.from(remoteSelections.values())}
-					readonly={!$session.data || !canEdit}
-				/>
+				{#if isMarkdown && showPreview}
+					<ResizablePaneGroup direction="horizontal" class="min-h-125">
+						<ResizablePane defaultSize={50} minSize={30}>
+							<CodeMirror
+								bind:this={editorRef}
+								bind:value={content}
+								onchange={handleEditorChange}
+								oncursorchange={handleCursorChange}
+								remoteCursors={Array.from(remoteCursors.values())}
+								remoteSelections={Array.from(remoteSelections.values())}
+								readonly={!$session.data || !canEdit}
+							/>
+						</ResizablePane>
+						<ResizableHandle withHandle />
+						<ResizablePane defaultSize={50} minSize={30}>
+							<div class="h-full overflow-auto bg-background p-6">
+								<Streamdown
+									content={content}
+									baseTheme="shadcn"
+								/>
+							</div>
+						</ResizablePane>
+					</ResizablePaneGroup>
+				{:else}
+					<CodeMirror
+						bind:this={editorRef}
+						bind:value={content}
+						onchange={handleEditorChange}
+						oncursorchange={handleCursorChange}
+						remoteCursors={Array.from(remoteCursors.values())}
+						remoteSelections={Array.from(remoteSelections.values())}
+						readonly={!$session.data || !canEdit}
+					/>
+				{/if}
 			</CardContent>
 		</Card>
 	{/if}

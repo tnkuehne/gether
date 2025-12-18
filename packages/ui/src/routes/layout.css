@@ -2,6 +2,9 @@
 
 @import "tw-animate-css";
 
+/* Add Streamdown styles to Tailwind build */
+@source "../node_modules/svelte-streamdown/**/*";
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
