@@ -6,7 +6,7 @@
 
 <svelte:head>
 	<title>Gether - Collaborative GitHub Markdown Editing</title>
-	<meta name="description" content="Edit GitHub Markdown files collaboratively in real time. Replace github.com with gether.app and start editing together." />
+	<meta name="description" content="Edit GitHub Markdown files collaboratively in real time. Replace github.com with gether.timokuehne.com and start editing together." />
 </svelte:head>
 
 <div class="min-h-screen bg-background">
@@ -31,7 +31,7 @@
 				Edit GitHub Markdown files collaboratively — in real time.
 			</h1>
 			<p class="text-muted-foreground mb-8">
-				Replace <code class="bg-muted px-1.5 py-0.5 rounded text-sm">github.com</code> with <code class="bg-muted px-1.5 py-0.5 rounded text-sm">gether.app</code> and start editing together.
+				Replace <code class="bg-muted px-1.5 py-0.5 rounded text-sm">github.com</code> with <code class="bg-muted px-1.5 py-0.5 rounded text-sm">gether.timokuehne.com</code> and start editing together.
 			</p>
 
 			<!-- URL Example -->
@@ -60,7 +60,7 @@
 				</li>
 				<li class="flex gap-4">
 					<span class="shrink-0 w-6 h-6 rounded-full bg-muted text-foreground text-sm flex items-center justify-center font-medium">2</span>
-					<span>Replace <code class="bg-muted px-1.5 py-0.5 rounded text-xs">github.com</code> with <code class="bg-muted px-1.5 py-0.5 rounded text-xs">gether.app</code></span>
+					<span>Replace <code class="bg-muted px-1.5 py-0.5 rounded text-xs">github.com</code> with <code class="bg-muted px-1.5 py-0.5 rounded text-xs">gether.timokuehne.com</code></span>
 				</li>
 				<li class="flex gap-4">
 					<span class="shrink-0 w-6 h-6 rounded-full bg-muted text-foreground text-sm flex items-center justify-center font-medium">3</span>
