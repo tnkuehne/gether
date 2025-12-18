@@ -7,49 +7,48 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
 	import { Octokit } from 'octokit';
 	import { authClient } from '$lib/auth-client';
 	import {
-		hasGitHubAppInstalled,
 		GITHUB_APP_INSTALL_URL,
-		fetchFileContent,
-		fetchRepoMetadata,
-		checkWritePermission,
 		commitFile
 	} from '$lib/github-app';
 	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from '$lib/components/ui/resizable';
 	import { Streamdown } from 'svelte-streamdown';
+	import type { PageProps } from './$types.js';
+
+	const { data }: PageProps = $props();
 
 	const { org, repo, branch } = $derived(page.params);
 	const path = $derived(page.params.path);
 
 	// Check if file is markdown
 	const isMarkdown = $derived(
-		path.endsWith('.md') || path.endsWith('.markdown') || path.endsWith('.mdx')
+		path!.endsWith('.md') || path!.endsWith('.markdown') || path!.endsWith('.mdx')
 	);
 	let showPreview = $state(true);
 
 	const session = authClient.useSession();
 
-	let fileData = $state<any>(null);
-	let repoData = $state<any>(null);
-	let loading = $state(true);
-	let error = $state<string | null>(null);
-	let canEdit = $state(false);
-	let needsGitHubApp = $state(false);
-	let hasGitHubApp = $state(false);
+	// Initialize from load function data
+	let fileData = $derived(data.fileData);
+	let repoData = $derived(data.repoData);
+	let error = $derived<string | null>(data.error);
+	let canEdit = $derived(data.canEdit);
+	let needsGitHubApp = $derived(data.needsGitHubApp);
+	let hasGitHubApp = $derived(data.hasGitHubApp);
 
-	let content = $state('');
-	let originalContent = $state('');
+	let content = $derived(data.fileData?.content ?? '');
+	let originalContent = $derived(data.fileData?.content ?? '');
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
-	let lastValue = $state('');
+	let lastValue = $derived(data.fileData?.content ?? '');
 	let remoteCursors = $state<Map<string, { position: number; color: string; userName?: string }>>(new Map());
 	let remoteSelections = $state<Map<string, { from: number; to: number; color: string; userName?: string }>>(new Map());
 	let myConnectionId = $state<string>('');
-	let editorRef: any = null;
+	let editorRef = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
 	// Commit dialog state
@@ -58,82 +57,12 @@
 	let isCommitting = $state(false);
 	let commitError = $state<string | null>(null);
 
-	// Get GitHub access token from Better Auth (basic OAuth for login)
-	let githubToken = $state<string | undefined>(undefined);
-
-	$effect(() => {
-		if (!$session.data) {
-			githubToken = undefined;
-			hasGitHubApp = false;
-			return;
+	onMount(() => {
+		// Connect WebSocket if we have file data
+		if (fileData) {
+			connect();
 		}
-
-		// Get OAuth token
-		authClient.getAccessToken({ providerId: 'github' })
-			.then(async response => {
-				githubToken = response?.data?.accessToken;
-
-				// Check GitHub App installation status
-				if (githubToken) {
-					hasGitHubApp = await hasGitHubAppInstalled(githubToken);
-				}
-			})
-			.catch((err) => {
-				console.error('getAccessToken error:', err);
-				githubToken = undefined;
-			});
 	});
-
-	// Fetch GitHub data when auth token changes
-	$effect(() => {
-		// Skip if we're not authenticated yet (token still loading)
-		if ($session.data && !githubToken) {
-			return;
-		}
-
-		loading = true;
-		error = null;
-		canEdit = false;
-		needsGitHubApp = false;
-
-		const octokit = new Octokit(githubToken ? { auth: githubToken } : undefined);
-
-		Promise.all([
-			fetchFileContent(octokit, org, repo, path, branch),
-			fetchRepoMetadata(octokit, org, repo)
-		])
-			.then(async ([file, repoMeta]) => {
-				fileData = file;
-				content = file.content;
-				originalContent = file.content;
-				lastValue = file.content;
-				repoData = repoMeta;
-
-				if (githubToken) {
-					canEdit = await checkWritePermission(octokit, org, repo);
-				}
-				loading = false;
-				connect();
-			})
-			.catch((err: any) => {
-				if (err.status === 404) {
-					// Could be a private repo we don't have access to
-					if ($session.data && githubToken) {
-						needsGitHubApp = true;
-						error = 'This appears to be a private repository. Install the GitHub App to grant access.';
-					} else {
-						error = 'File or repository not found';
-					}
-				} else if (err.status === 403) {
-					error = 'Rate limit exceeded or access denied';
-				} else {
-					error = err.message || 'Failed to fetch';
-				}
-				loading = false;
-			});
-	});
-
-
 
 	function connect() {
 		if (!fileData) return;
@@ -321,17 +250,25 @@
 	}
 
 	async function handleCommit() {
-		if (!githubToken || !fileData || !commitMessage.trim()) {
-			return;
+		let accessToken;
+
+		try {
+		    const response = await authClient.getAccessToken({ providerId: 'github' })
+			accessToken = response.data.accessToken;
+		} catch (error) {
+		    console.error('Error getting access token:', error);
+		    return;
 		}
 
-		console.log("token ", githubToken)
+		if (!accessToken || !fileData || !commitMessage.trim()) {
+			return;
+		}
 
 		isCommitting = true;
 		commitError = null;
 
 		try {
-			const octokit = new Octokit({ auth: githubToken });
+			const octokit = new Octokit({ auth: accessToken });
 			const result = await commitFile(
 				octokit,
 				org,
@@ -436,13 +373,7 @@
 		{/if}
 	</header>
 
-	{#if loading}
-		<Card>
-			<CardContent class="py-8">
-				<p class="text-center text-muted-foreground">Loading file from GitHub...</p>
-			</CardContent>
-		</Card>
-	{:else if error}
+	{#if error}
 		<Card class="border-destructive bg-destructive/10">
 			<CardHeader>
 				<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>

@@ -28,7 +28,7 @@
 		"@tailwindcss/vite": "^4.1.17",
 		"@tanstack/table-core": "^8.21.3",
 		"@types/node": "^24",
-		"better-auth": "^1.4.8-beta.1",
+		"better-auth": "^1.4.7",
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",
 		"codemirror": "^6.0.2",
