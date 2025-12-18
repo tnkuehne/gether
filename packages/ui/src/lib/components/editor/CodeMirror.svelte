@@ -195,20 +195,12 @@
 				}),
 				EditorView.theme({
 					'&': {
-						height: '500px',
 						fontSize: '14px'
 					},
 					'.cm-scroller': {
 						fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
 						lineHeight: '1.5',
 						overflow: 'auto'
-					},
-					'.cm-content': {
-						minHeight: '500px',
-						padding: '16px'
-					},
-					'.cm-editor': {
-						height: '100%'
 					}
 				})
 			]
@@ -263,7 +255,6 @@
 						EditorView.editable.of(!readonly),
 						EditorView.theme({
 							'&': {
-								height: '500px',
 								fontSize: '14px'
 							},
 							'.cm-scroller': {
@@ -271,13 +262,6 @@
 								lineHeight: '1.5',
 								overflow: 'auto'
 							},
-							'.cm-content': {
-								minHeight: '500px',
-								padding: '16px'
-							},
-							'.cm-editor': {
-								height: '100%'
-							}
 						})
 					])
 				});
@@ -320,4 +304,4 @@
 	}
 </script>
 
-<div {@attach initializeEditor} class="w-full border rounded-md overflow-hidden" style="min-height: 500px;"></div>
+<div {@attach initializeEditor}></div>
