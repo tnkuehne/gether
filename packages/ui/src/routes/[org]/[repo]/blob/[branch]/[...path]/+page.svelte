@@ -26,7 +26,7 @@
 
 	// Check if file is markdown
 	const isMarkdown = $derived(
-		path!.endsWith('.md') || path!.endsWith('.markdown') || path!.endsWith('.mdx')
+		path!.endsWith('.md') || path!.endsWith('.markdown') || path!.endsWith('.mdx') || path!.endsWith('.svx')
 	);
 	let showPreview = $state(true);
 
