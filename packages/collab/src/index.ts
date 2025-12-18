@@ -28,6 +28,9 @@ interface Message {
 
 const MAX_MESSAGE_SIZE = 65536; // 64KB - generous limit for collaborative text editor
 
+// Cleanup inactive documents after 48 hours of no activity
+const CLEANUP_AFTER_MS = 2 * 24 * 60 * 60 * 1000;
+
 export class CollaborativeDocument extends DurableObject<Env> {
 	private content: string = '';
 	private checkpointScheduled: boolean = false;
@@ -37,13 +40,26 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 		// Initialize SQLite storage for document content
 		ctx.blockConcurrencyWhile(async () => {
-			// Create table if it doesn't exist
+			// Create table if it doesn't exist (with last_activity for cleanup scheduling)
 			this.ctx.storage.sql.exec(`
 				CREATE TABLE IF NOT EXISTS document (
 					id INTEGER PRIMARY KEY CHECK (id = 1),
-					content TEXT NOT NULL DEFAULT ''
+					content TEXT NOT NULL DEFAULT '',
+					last_activity INTEGER NOT NULL DEFAULT 0
 				)
 			`);
+
+			// Migration: add last_activity column if it doesn't exist (for existing documents)
+			const columns = this.ctx.storage.sql
+				.exec<{ name: string }>("PRAGMA table_info(document)")
+				.toArray()
+				.map((col) => col.name);
+
+			if (!columns.includes('last_activity')) {
+				this.ctx.storage.sql.exec('ALTER TABLE document ADD COLUMN last_activity INTEGER NOT NULL DEFAULT 0');
+				// Set last_activity to now for existing documents
+				this.ctx.storage.sql.exec('UPDATE document SET last_activity = ? WHERE id = 1', Date.now());
+			}
 
 			// Load existing content or initialize with empty
 			const result = this.ctx.storage.sql.exec<{ content: string }>('SELECT content FROM document WHERE id = 1').toArray();
@@ -51,8 +67,8 @@ export class CollaborativeDocument extends DurableObject<Env> {
 			if (result.length > 0) {
 				this.content = result[0].content;
 			} else {
-				// Insert initial empty document
-				this.ctx.storage.sql.exec("INSERT INTO document (id, content) VALUES (1, '')");
+				// Insert initial empty document with current timestamp
+				this.ctx.storage.sql.exec('INSERT INTO document (id, content, last_activity) VALUES (1, ?, ?)', '', Date.now());
 				this.content = '';
 			}
 		});
@@ -222,14 +238,16 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		// Check if this was the last client
 		const remainingClients = this.ctx.getWebSockets().filter((c) => c !== ws);
 		if (remainingClients.length === 0) {
-			// Persist content to SQLite before hibernation
-			this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
+			// Persist content and last activity to SQLite before hibernation
+			this.ctx.storage.sql.exec(
+				'UPDATE document SET content = ?, last_activity = ? WHERE id = 1',
+				this.content,
+				Date.now()
+			);
+			this.checkpointScheduled = false;
 
-			// Cancel any pending checkpoint alarm
-			if (this.checkpointScheduled) {
-				this.ctx.storage.deleteAlarm();
-				this.checkpointScheduled = false;
-			}
+			// Schedule cleanup alarm for inactive document deletion
+			this.ctx.storage.setAlarm(Date.now() + CLEANUP_AFTER_MS);
 		}
 	}
 
@@ -239,14 +257,39 @@ export class CollaborativeDocument extends DurableObject<Env> {
 	}
 
 	async alarm() {
-		// Persist content to SQLite
-		this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
-		this.checkpointScheduled = false;
+		const connectedClients = this.ctx.getWebSockets().length;
 
-		// Reschedule if clients are still connected
-		if (this.ctx.getWebSockets().length > 0) {
+		if (connectedClients > 0) {
+			// Clients connected: this is a checkpoint alarm
+			this.ctx.storage.sql.exec(
+				'UPDATE document SET content = ?, last_activity = ? WHERE id = 1',
+				this.content,
+				Date.now()
+			);
+			this.checkpointScheduled = false;
+
+			// Reschedule checkpoint
 			this.ctx.storage.setAlarm(Date.now() + 30000);
 			this.checkpointScheduled = true;
+		} else {
+			// No clients: check if document is inactive and should be cleaned up
+			const result = this.ctx.storage.sql
+				.exec<{ last_activity: number }>('SELECT last_activity FROM document WHERE id = 1')
+				.toArray();
+
+			if (result.length > 0) {
+				const lastActivity = result[0].last_activity;
+				const inactiveTime = Date.now() - lastActivity;
+
+				if (inactiveTime >= CLEANUP_AFTER_MS) {
+					// Document has been inactive long enough, delete all storage
+					await this.ctx.storage.deleteAll();
+				} else {
+					// Not inactive long enough yet, reschedule cleanup
+					const remainingTime = CLEANUP_AFTER_MS - inactiveTime;
+					this.ctx.storage.setAlarm(Date.now() + remainingTime);
+				}
+			}
 		}
 	}
 
