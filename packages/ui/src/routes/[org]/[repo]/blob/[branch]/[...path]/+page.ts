@@ -56,8 +56,9 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			error: null,
 			needsGitHubApp: false,
 		};
-	} catch (err: any) {
-		if (err.status === 404) {
+	} catch (err: unknown) {
+		const error = err as { status?: number; message?: string };
+		if (error.status === 404) {
 			const needsGitHubApp = !!session.data && !!githubToken;
 			return {
 				fileData: null,
@@ -69,7 +70,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 					: "File or repository not found",
 				needsGitHubApp,
 			};
-		} else if (err.status === 403) {
+		} else if (error.status === 403) {
 			return {
 				fileData: null,
 				repoData: null,
@@ -85,7 +86,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			repoData: null,
 			canEdit: false,
 			hasGitHubApp,
-			error: err.message || "Failed to fetch",
+			error: error.message || "Failed to fetch",
 			needsGitHubApp: false,
 		};
 	}

@@ -36,4 +36,12 @@ export default defineConfig(
 			},
 		},
 	},
+	{
+		// Disable no-navigation-without-resolve for generic UI components that accept any href
+		// and for page routes that use external links (GitHub URLs, download links)
+		files: ["packages/**/components/ui/**/*.svelte", "packages/**/routes/**/*.svelte"],
+		rules: {
+			"svelte/no-navigation-without-resolve": "off",
+		},
+	},
 );

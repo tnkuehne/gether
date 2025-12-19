@@ -8,6 +8,7 @@
 	import * as Field from "$lib/components/ui/field";
 	import { Input } from "$lib/components/ui/input";
 	import { onDestroy, onMount } from "svelte";
+	import { SvelteMap } from "svelte/reactivity";
 	import CodeMirror from "$lib/components/editor/CodeMirror.svelte";
 	import { Octokit } from "octokit";
 	import { authClient } from "$lib/auth-client";
@@ -46,12 +47,14 @@
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $derived(data.fileData?.content ?? "");
-	let remoteCursors = $state<Map<string, { position: number; color: string; userName?: string }>>(
-		new Map(),
-	);
-	let remoteSelections = $state<
-		Map<string, { from: number; to: number; color: string; userName?: string }>
-	>(new Map());
+	const remoteCursors = new SvelteMap<
+		string,
+		{ position: number; color: string; userName?: string }
+	>();
+	const remoteSelections = new SvelteMap<
+		string,
+		{ from: number; to: number; color: string; userName?: string }
+	>();
 	let myConnectionId = $state<string>("");
 	let editorRef = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
@@ -141,7 +144,6 @@
 							color,
 							userName: data.userName,
 						});
-						remoteCursors = new Map(remoteCursors);
 
 						// If selection data is included
 						if (data.selection && data.selection.from !== data.selection.to) {
@@ -151,11 +153,9 @@
 								color,
 								userName: data.userName,
 							});
-							remoteSelections = new Map(remoteSelections);
 						} else {
 							// No selection, remove it
 							remoteSelections.delete(data.connectionId);
-							remoteSelections = new Map(remoteSelections);
 						}
 					}
 					break;
@@ -164,9 +164,7 @@
 				case "cursor-leave": {
 					if (data.connectionId) {
 						remoteCursors.delete(data.connectionId);
-						remoteCursors = new Map(remoteCursors);
 						remoteSelections.delete(data.connectionId);
-						remoteSelections = new Map(remoteSelections);
 					}
 					break;
 				}
@@ -322,14 +320,15 @@
 			originalContent = content;
 			commitMessage = "";
 			commitDialogOpen = false;
-		} catch (err: any) {
-			if (err.status === 409) {
+		} catch (err: unknown) {
+			const error = err as { status?: number; message?: string };
+			if (error.status === 409) {
 				commitError =
 					"Conflict: The file has been modified on GitHub. Please refresh and try again.";
-			} else if (err.status === 422) {
+			} else if (error.status === 422) {
 				commitError = "The file content is unchanged or the commit message is invalid.";
 			} else {
-				commitError = err.message || "Failed to commit changes";
+				commitError = error.message || "Failed to commit changes";
 			}
 		} finally {
 			isCommitting = false;
@@ -495,6 +494,7 @@
 							Reset
 						</Button>
 					{/if}
+
 					<a
 						href={fileData.downloadUrl}
 						download
@@ -502,6 +502,7 @@
 					>
 						Download
 					</a>
+
 					<a
 						href={fileData.url}
 						target="_blank"

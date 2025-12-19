@@ -38,7 +38,6 @@
 
 	let editorView: EditorView | null = null;
 	let isUpdatingFromRemote = false;
-	let pendingRemoteChanges: Array<{ from: number; to: number; insert: string }> = [];
 
 	export function applyRemoteChange(change: { from: number; to: number; insert: string }) {
 		if (editorView) {

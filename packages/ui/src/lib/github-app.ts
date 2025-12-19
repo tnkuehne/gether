@@ -142,11 +142,11 @@ export async function checkWritePermission(octokit: Octokit, org: string, repo: 
 				permissionData.permission === "write" ||
 				permissionData.permission === "maintain"
 			);
-		} catch (err: any) {
+		} catch {
 			// If 403, user is not a collaborator
 			return false;
 		}
-	} catch (err: any) {
+	} catch {
 		return false;
 	}
 }

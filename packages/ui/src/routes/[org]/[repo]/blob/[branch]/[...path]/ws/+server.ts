@@ -41,7 +41,8 @@ export const GET: RequestHandler = async ({ params, platform, request, locals })
 			owner: org,
 			repo: repo,
 		});
-	} catch (error: any) {
+	} catch (err: unknown) {
+		const error = err as { status?: number };
 		if (error.status === 404 || error.status === 403) {
 			return new Response("Repository not found or access denied", { status: 403 });
 		}
