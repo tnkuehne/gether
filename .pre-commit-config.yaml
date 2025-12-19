@@ -11,6 +11,12 @@ repos:
         name: prettier
         entry: npx prettier --write
         language: node
-        types_or: [javascript, ts, json, css, scss, html, markdown, svelte]
-        exclude: ".*|worker-configuration\\.d\\.ts"
+        files: \.(js|ts|json|css|scss|html|md|svelte)$
+        exclude: ^(\.|node_modules/|worker-configuration\.d\.ts)
         additional_dependencies: [prettier, prettier-plugin-svelte, 'prettier-plugin-tailwindcss']
+      - id: eslint
+        name: eslint
+        entry: npx eslint --fix
+        language: node
+        files: \.(js|ts|svelte)$
+        exclude: ^(\.|node_modules/|worker-configuration\.d\.ts)
