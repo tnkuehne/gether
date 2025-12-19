@@ -56,7 +56,7 @@
 		{ from: number; to: number; color: string; userName?: string }
 	>();
 	let myConnectionId = $state<string>("");
-	let editorRef = null;
+	let editorRef: ReturnType<typeof CodeMirror> | null = $state(null);
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
 	// Commit dialog state
