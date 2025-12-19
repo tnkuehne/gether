@@ -13,7 +13,6 @@ repos:
         language: node
         files: \.(js|ts|json|css|scss|html|md|svelte)$
         exclude: ^(\.|node_modules/|worker-configuration\.d\.ts)
-        additional_dependencies: [prettier, prettier-plugin-svelte, 'prettier-plugin-tailwindcss']
       - id: eslint
         name: eslint
         entry: npx eslint --fix
