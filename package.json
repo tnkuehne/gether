@@ -9,7 +9,7 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"check": "pnpm -r check",
-		"deploy:ui": "pnpm --filter @gether/ui deploy"
+		"prepare": "prek install"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.4.0",
