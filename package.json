@@ -41,6 +41,6 @@
 				}
 			}
 		],
-		"tailwindStylesheet": "./src/routes/layout.css"
+		"tailwindStylesheet": "./packages/ui/src/routes/layout.css"
 	}
 }
