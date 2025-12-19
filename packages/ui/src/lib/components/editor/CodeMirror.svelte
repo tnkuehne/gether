@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
-	import { EditorView, basicSetup } from 'codemirror';
-	import { EditorState, StateEffect, StateField } from '@codemirror/state';
-	import { markdown } from '@codemirror/lang-markdown';
-	import { Decoration, type DecorationSet, WidgetType } from '@codemirror/view';
+	import { onDestroy } from "svelte";
+	import { EditorView, basicSetup } from "codemirror";
+	import { EditorState, StateEffect, StateField } from "@codemirror/state";
+	import { markdown } from "@codemirror/lang-markdown";
+	import { Decoration, type DecorationSet, WidgetType } from "@codemirror/view";
 
 	interface RemoteCursor {
 		position: number;
@@ -19,12 +19,14 @@
 	}
 
 	let {
-		value = $bindable(''),
+		value = $bindable(""),
 		onchange = undefined as ((value: string) => void) | undefined,
-		oncursorchange = undefined as ((position: number, selection?: { from: number; to: number }) => void) | undefined,
+		oncursorchange = undefined as
+			| ((position: number, selection?: { from: number; to: number }) => void)
+			| undefined,
 		remoteCursors = [] as RemoteCursor[],
 		remoteSelections = [] as RemoteSelection[],
-		readonly = false
+		readonly = false,
 	}: {
 		value?: string;
 		onchange?: (value: string) => void;
@@ -42,7 +44,7 @@
 		if (editorView) {
 			isUpdatingFromRemote = true;
 			editorView.dispatch({
-				changes: change
+				changes: change,
 			});
 			// Update value to match so the $effect doesn't trigger a full replacement
 			value = editorView.state.doc.toString();
@@ -62,39 +64,39 @@
 		}
 
 		toDOM() {
-			const wrapper = document.createElement('span');
-			wrapper.style.position = 'relative';
-			wrapper.style.display = 'inline';
-			wrapper.style.height = '0';
-			wrapper.style.width = '0';
+			const wrapper = document.createElement("span");
+			wrapper.style.position = "relative";
+			wrapper.style.display = "inline";
+			wrapper.style.height = "0";
+			wrapper.style.width = "0";
 
-			const cursor = document.createElement('span');
-			cursor.style.position = 'absolute';
+			const cursor = document.createElement("span");
+			cursor.style.position = "absolute";
 			cursor.style.borderLeft = `2px solid ${this.color}`;
-			cursor.style.height = '1.2em';
-			cursor.style.left = '0';
-			cursor.style.top = '0';
-			cursor.style.pointerEvents = 'none';
-			cursor.style.zIndex = '10';
+			cursor.style.height = "1.2em";
+			cursor.style.left = "0";
+			cursor.style.top = "0";
+			cursor.style.pointerEvents = "none";
+			cursor.style.zIndex = "10";
 			cursor.style.boxShadow = `0 0 4px ${this.color}`;
 
 			wrapper.appendChild(cursor);
 
 			if (this.userName) {
-				const label = document.createElement('span');
+				const label = document.createElement("span");
 				label.textContent = this.userName;
-				label.style.position = 'absolute';
-				label.style.top = '-20px';
-				label.style.left = '2px';
+				label.style.position = "absolute";
+				label.style.top = "-20px";
+				label.style.left = "2px";
 				label.style.backgroundColor = this.color;
-				label.style.color = 'white';
-				label.style.padding = '2px 6px';
-				label.style.borderRadius = '3px';
-				label.style.fontSize = '11px';
-				label.style.fontWeight = '500';
-				label.style.whiteSpace = 'nowrap';
-				label.style.pointerEvents = 'none';
-				label.style.zIndex = '11';
+				label.style.color = "white";
+				label.style.padding = "2px 6px";
+				label.style.borderRadius = "3px";
+				label.style.fontSize = "11px";
+				label.style.fontWeight = "500";
+				label.style.whiteSpace = "nowrap";
+				label.style.pointerEvents = "none";
+				label.style.zIndex = "11";
 				wrapper.appendChild(label);
 			}
 
@@ -124,7 +126,7 @@
 						const pos = Math.min(cursor.position, tr.newDoc.length);
 						return Decoration.widget({
 							widget: new CursorWidget(cursor.color, cursor.userName),
-							side: 1
+							side: 1,
 						}).range(pos);
 					});
 					decorations = Decoration.set(widgets);
@@ -133,7 +135,7 @@
 
 			return decorations;
 		},
-		provide: (f) => EditorView.decorations.from(f)
+		provide: (f) => EditorView.decorations.from(f),
 	});
 
 	// Field to store remote selections decorations
@@ -153,8 +155,8 @@
 						const to = Math.min(selection.to, tr.newDoc.length);
 						return Decoration.mark({
 							attributes: {
-								style: `background-color: ${selection.color.replace('0.8', '0.2')};`
-							}
+								style: `background-color: ${selection.color.replace("0.8", "0.2")};`,
+							},
 						}).range(from, to);
 					});
 					decorations = Decoration.set(marks);
@@ -163,12 +165,12 @@
 
 			return decorations;
 		},
-		provide: (f) => EditorView.decorations.from(f)
+		provide: (f) => EditorView.decorations.from(f),
 	});
 
 	function initializeEditor(container: HTMLDivElement) {
 		const state = EditorState.create({
-			doc: '',
+			doc: "",
 			extensions: [
 				basicSetup,
 				markdown(),
@@ -186,29 +188,30 @@
 						const selection = update.state.selection.main;
 						const cursorPos = selection.head;
 						// Send selection range if text is selected
-						const selectionRange = selection.from !== selection.to
-							? { from: selection.from, to: selection.to }
-							: undefined;
+						const selectionRange =
+							selection.from !== selection.to
+								? { from: selection.from, to: selection.to }
+								: undefined;
 						// Access current callback from props
 						oncursorchange?.(cursorPos, selectionRange);
 					}
 				}),
 				EditorView.theme({
-					'&': {
-						fontSize: '14px'
+					"&": {
+						fontSize: "14px",
 					},
-					'.cm-scroller': {
-						fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-						lineHeight: '1.5',
-						overflow: 'auto'
-					}
-				})
-			]
+					".cm-scroller": {
+						fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+						lineHeight: "1.5",
+						overflow: "auto",
+					},
+				}),
+			],
 		});
 
 		editorView = new EditorView({
 			state,
-			parent: container
+			parent: container,
 		});
 
 		// Create nested effects to handle reactive updates without re-running the attachment
@@ -221,8 +224,8 @@
 						changes: {
 							from: 0,
 							to: editorView.state.doc.length,
-							insert: value
-						}
+							insert: value,
+						},
 					});
 					isUpdatingFromRemote = false;
 				}
@@ -246,24 +249,25 @@
 							if (update.selectionSet) {
 								const selection = update.state.selection.main;
 								const cursorPos = selection.head;
-								const selectionRange = selection.from !== selection.to
-									? { from: selection.from, to: selection.to }
-									: undefined;
+								const selectionRange =
+									selection.from !== selection.to
+										? { from: selection.from, to: selection.to }
+										: undefined;
 								oncursorchange?.(cursorPos, selectionRange);
 							}
 						}),
 						EditorView.editable.of(!readonly),
 						EditorView.theme({
-							'&': {
-								fontSize: '14px'
+							"&": {
+								fontSize: "14px",
 							},
-							'.cm-scroller': {
-								fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-								lineHeight: '1.5',
-								overflow: 'auto'
+							".cm-scroller": {
+								fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+								lineHeight: "1.5",
+								overflow: "auto",
 							},
-						})
-					])
+						}),
+					]),
 				});
 			}
 		});
@@ -271,7 +275,7 @@
 		$effect.pre(() => {
 			if (editorView) {
 				editorView.dispatch({
-					effects: updateRemoteCursorsEffect.of(remoteCursors)
+					effects: updateRemoteCursorsEffect.of(remoteCursors),
 				});
 			}
 		});
@@ -279,7 +283,7 @@
 		$effect.pre(() => {
 			if (editorView) {
 				editorView.dispatch({
-					effects: updateRemoteSelectionsEffect.of(remoteSelections)
+					effects: updateRemoteSelectionsEffect.of(remoteSelections),
 				});
 			}
 		});

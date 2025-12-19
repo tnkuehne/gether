@@ -1,5 +1,5 @@
-import { Octokit } from 'octokit';
-import { PUBLIC_GITHUB_APP_ID, PUBLIC_GITHUB_APP_SLUG } from '$env/static/public';
+import { Octokit } from "octokit";
+import { PUBLIC_GITHUB_APP_ID, PUBLIC_GITHUB_APP_SLUG } from "$env/static/public";
 
 // GitHub App installation URL - user installs app to grant access to specific repos
 export const GITHUB_APP_INSTALL_URL = PUBLIC_GITHUB_APP_SLUG
@@ -21,10 +21,10 @@ export async function hasGitHubAppInstalled(userAccessToken: string): Promise<bo
 			await userOctokit.rest.apps.listInstallationsForAuthenticatedUser();
 
 		return installations.installations.some(
-			(inst) => inst.app_id === parseInt(PUBLIC_GITHUB_APP_ID)
+			(inst) => inst.app_id === parseInt(PUBLIC_GITHUB_APP_ID),
 		);
 	} catch (error) {
-		console.error('Failed to check GitHub App installation:', error);
+		console.error("Failed to check GitHub App installation:", error);
 		return false;
 	}
 }
@@ -37,16 +37,16 @@ export async function fetchFileContent(
 	org: string,
 	repo: string,
 	path: string,
-	branch: string
+	branch: string,
 ) {
 	const { data: fileResponse } = await octokit.rest.repos.getContent({
 		owner: org,
 		repo: repo,
 		path: path,
-		ref: branch
+		ref: branch,
 	});
 
-	if ('content' in fileResponse && fileResponse.type === 'file') {
+	if ("content" in fileResponse && fileResponse.type === "file") {
 		const decodedContent = atob(fileResponse.content);
 
 		return {
@@ -55,12 +55,12 @@ export async function fetchFileContent(
 			downloadUrl: fileResponse.download_url,
 			sha: fileResponse.sha,
 			size: fileResponse.size,
-			name: fileResponse.name
+			name: fileResponse.name,
 		};
 	} else if (Array.isArray(fileResponse)) {
-		throw new Error('Path is a directory, not a file');
+		throw new Error("Path is a directory, not a file");
 	} else {
-		throw new Error('Invalid file type');
+		throw new Error("Invalid file type");
 	}
 }
 
@@ -70,7 +70,7 @@ export async function fetchFileContent(
 export async function fetchRepoMetadata(octokit: Octokit, org: string, repo: string) {
 	const { data: repoResponse } = await octokit.rest.repos.get({
 		owner: org,
-		repo: repo
+		repo: repo,
 	});
 
 	return {
@@ -83,7 +83,7 @@ export async function fetchRepoMetadata(octokit: Octokit, org: string, repo: str
 		forks: repoResponse.forks_count,
 		language: repoResponse.language,
 		updatedAt: repoResponse.updated_at,
-		htmlUrl: repoResponse.html_url
+		htmlUrl: repoResponse.html_url,
 	};
 }
 
@@ -98,7 +98,7 @@ export async function commitFile(
 	branch: string,
 	content: string,
 	message: string,
-	sha: string
+	sha: string,
 ) {
 	const { data } = await octokit.rest.repos.createOrUpdateFileContents({
 		owner: org,
@@ -107,13 +107,13 @@ export async function commitFile(
 		message: message,
 		content: btoa(content),
 		sha: sha,
-		branch: branch
+		branch: branch,
 	});
 
 	return {
 		sha: data.content?.sha,
 		commitSha: data.commit.sha,
-		commitUrl: data.commit.html_url
+		commitUrl: data.commit.html_url,
 	};
 }
 
@@ -134,13 +134,13 @@ export async function checkWritePermission(octokit: Octokit, org: string, repo: 
 			const { data: permissionData } = await octokit.rest.repos.getCollaboratorPermissionLevel({
 				owner: org,
 				repo: repo,
-				username: userData.login
+				username: userData.login,
 			});
 
 			return (
-				permissionData.permission === 'admin' ||
-				permissionData.permission === 'write' ||
-				permissionData.permission === 'maintain'
+				permissionData.permission === "admin" ||
+				permissionData.permission === "write" ||
+				permissionData.permission === "maintain"
 			);
 		} catch (err: any) {
 			// If 403, user is not a collaborator

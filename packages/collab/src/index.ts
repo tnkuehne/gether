@@ -1,11 +1,11 @@
-import { DurableObject } from 'cloudflare:workers';
+import { DurableObject } from "cloudflare:workers";
 
 interface Env {
 	COLLAB_DOCUMENT: DurableObjectNamespace<CollaborativeDocument>;
 }
 
 interface Message {
-	type: 'init' | 'change' | 'cursor' | 'cursor-leave';
+	type: "init" | "change" | "cursor" | "cursor-leave";
 	content?: string;
 	changes?: {
 		from: number;
@@ -32,7 +32,7 @@ const MAX_MESSAGE_SIZE = 65536; // 64KB - generous limit for collaborative text 
 const CLEANUP_AFTER_MS = 2 * 24 * 60 * 60 * 1000;
 
 export class CollaborativeDocument extends DurableObject<Env> {
-	private content: string = '';
+	private content: string = "";
 	private checkpointScheduled: boolean = false;
 
 	constructor(ctx: DurableObjectState, env: Env) {
@@ -55,36 +55,44 @@ export class CollaborativeDocument extends DurableObject<Env> {
 				.toArray()
 				.map((col) => col.name);
 
-			if (!columns.includes('last_activity')) {
-				this.ctx.storage.sql.exec('ALTER TABLE document ADD COLUMN last_activity INTEGER NOT NULL DEFAULT 0');
+			if (!columns.includes("last_activity")) {
+				this.ctx.storage.sql.exec(
+					"ALTER TABLE document ADD COLUMN last_activity INTEGER NOT NULL DEFAULT 0",
+				);
 				// Set last_activity to now for existing documents
-				this.ctx.storage.sql.exec('UPDATE document SET last_activity = ? WHERE id = 1', Date.now());
+				this.ctx.storage.sql.exec("UPDATE document SET last_activity = ? WHERE id = 1", Date.now());
 			}
 
 			// Load existing content or initialize with empty
-			const result = this.ctx.storage.sql.exec<{ content: string }>('SELECT content FROM document WHERE id = 1').toArray();
+			const result = this.ctx.storage.sql
+				.exec<{ content: string }>("SELECT content FROM document WHERE id = 1")
+				.toArray();
 
 			if (result.length > 0) {
 				this.content = result[0].content;
 			} else {
 				// Insert initial empty document with current timestamp
-				this.ctx.storage.sql.exec('INSERT INTO document (id, content, last_activity) VALUES (1, ?, ?)', '', Date.now());
-				this.content = '';
+				this.ctx.storage.sql.exec(
+					"INSERT INTO document (id, content, last_activity) VALUES (1, ?, ?)",
+					"",
+					Date.now(),
+				);
+				this.content = "";
 			}
 		});
 	}
 
 	async fetch(request: Request): Promise<Response> {
 		// Check for WebSocket upgrade
-		const upgradeHeader = request.headers.get('Upgrade');
-		if (upgradeHeader !== 'websocket') {
-			return new Response('Expected WebSocket', { status: 426 });
+		const upgradeHeader = request.headers.get("Upgrade");
+		if (upgradeHeader !== "websocket") {
+			return new Response("Expected WebSocket", { status: 426 });
 		}
 
 		// Extract user info from headers
-		const userName = request.headers.get('X-User-Name');
-		const userImage = request.headers.get('X-User-Image');
-		const userId = request.headers.get('X-User-Id');
+		const userName = request.headers.get("X-User-Name");
+		const userImage = request.headers.get("X-User-Image");
+		const userId = request.headers.get("X-User-Id");
 
 		// Create WebSocket pair
 		const pair = new WebSocketPair();
@@ -99,15 +107,15 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 		return new Response(null, {
 			status: 101,
-			webSocket: client
+			webSocket: client,
 		});
 	}
 
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
 		// Check message size before parsing to prevent memory exhaustion
-		const messageSize = typeof message === 'string' ? message.length : message.byteLength;
+		const messageSize = typeof message === "string" ? message.length : message.byteLength;
 		if (messageSize > MAX_MESSAGE_SIZE) {
-			ws.close(1009, 'Message too big');
+			ws.close(1009, "Message too big");
 			return;
 		}
 
@@ -115,7 +123,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 			const data = JSON.parse(message.toString()) as Message;
 
 			switch (data.type) {
-				case 'init': {
+				case "init": {
 					// Generate a unique connection ID for this client
 					const connectionId = crypto.randomUUID();
 
@@ -137,27 +145,27 @@ export class CollaborativeDocument extends DurableObject<Env> {
 					ws.serializeAttachment({
 						connectionId,
 						userName: userName || undefined,
-						userImage: userImage || undefined
+						userImage: userImage || undefined,
 					});
 
 					// If DO has no content and client sent content, initialize with it
 					if (!this.content && data.content) {
 						this.content = data.content;
-						this.ctx.storage.sql.exec('UPDATE document SET content = ? WHERE id = 1', this.content);
+						this.ctx.storage.sql.exec("UPDATE document SET content = ? WHERE id = 1", this.content);
 					}
 
 					// Send current document state to client
 					ws.send(
 						JSON.stringify({
-							type: 'init',
+							type: "init",
 							content: this.content,
-							connectionId
-						})
+							connectionId,
+						}),
 					);
 					break;
 				}
 
-				case 'change': {
+				case "change": {
 					// Apply and broadcast document changes
 					const { changes } = data;
 					if (changes) {
@@ -182,17 +190,17 @@ export class CollaborativeDocument extends DurableObject<Env> {
 						// Broadcast to all clients (including sender) with connectionId
 						this.broadcast(
 							{
-								type: 'change',
+								type: "change",
 								changes,
-								connectionId: attachment?.connectionId
+								connectionId: attachment?.connectionId,
 							},
-							ws
+							ws,
 						);
 					}
 					break;
 				}
 
-				case 'cursor': {
+				case "cursor": {
 					// Broadcast cursor position to all other clients with connection ID and user info
 					if (data.position !== undefined) {
 						const attachment = ws.deserializeAttachment() as {
@@ -203,21 +211,21 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 						this.broadcast(
 							{
-								type: 'cursor',
+								type: "cursor",
 								position: data.position,
 								selection: data.selection,
 								connectionId: attachment?.connectionId,
 								userName: data.userName || attachment?.userName,
-								userImage: data.userImage || attachment?.userImage
+								userImage: data.userImage || attachment?.userImage,
 							},
-							ws
+							ws,
 						);
 					}
 					break;
 				}
 			}
 		} catch (error) {
-			console.error('WebSocket message error:', error);
+			console.error("WebSocket message error:", error);
 		}
 	}
 
@@ -230,8 +238,8 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 		if (attachment?.connectionId) {
 			this.broadcast({
-				type: 'cursor-leave',
-				connectionId: attachment.connectionId
+				type: "cursor-leave",
+				connectionId: attachment.connectionId,
 			});
 		}
 
@@ -240,9 +248,9 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		if (remainingClients.length === 0) {
 			// Persist content and last activity to SQLite before hibernation
 			this.ctx.storage.sql.exec(
-				'UPDATE document SET content = ?, last_activity = ? WHERE id = 1',
+				"UPDATE document SET content = ?, last_activity = ? WHERE id = 1",
 				this.content,
-				Date.now()
+				Date.now(),
 			);
 			this.checkpointScheduled = false;
 
@@ -252,8 +260,8 @@ export class CollaborativeDocument extends DurableObject<Env> {
 	}
 
 	async webSocketError(ws: WebSocket, error: unknown) {
-		console.error('WebSocket error:', error);
-		ws.close(1011, 'WebSocket error');
+		console.error("WebSocket error:", error);
+		ws.close(1011, "WebSocket error");
 	}
 
 	async alarm() {
@@ -262,9 +270,9 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		if (connectedClients > 0) {
 			// Clients connected: this is a checkpoint alarm
 			this.ctx.storage.sql.exec(
-				'UPDATE document SET content = ?, last_activity = ? WHERE id = 1',
+				"UPDATE document SET content = ?, last_activity = ? WHERE id = 1",
 				this.content,
-				Date.now()
+				Date.now(),
 			);
 			this.checkpointScheduled = false;
 
@@ -274,7 +282,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		} else {
 			// No clients: check if document is inactive and should be cleaned up
 			const result = this.ctx.storage.sql
-				.exec<{ last_activity: number }>('SELECT last_activity FROM document WHERE id = 1')
+				.exec<{ last_activity: number }>("SELECT last_activity FROM document WHERE id = 1")
 				.toArray();
 
 			if (result.length > 0) {
@@ -302,7 +310,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 				try {
 					client.send(payload);
 				} catch (error) {
-					console.error('Broadcast error:', error);
+					console.error("Broadcast error:", error);
 				}
 			}
 		}
@@ -312,5 +320,5 @@ export class CollaborativeDocument extends DurableObject<Env> {
 export default {
 	async fetch(): Promise<Response> {
 		return new Response();
-	}
+	},
 } satisfies ExportedHandler<Env>;

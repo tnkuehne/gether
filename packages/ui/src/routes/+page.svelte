@@ -1,12 +1,15 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
-	import githubMark from '$lib/assets/github-mark.svg';
-	import githubMarkWhite from '$lib/assets/github-mark-white.svg';
+	import { Button } from "$lib/components/ui/button";
+	import githubMark from "$lib/assets/github-mark.svg";
+	import githubMarkWhite from "$lib/assets/github-mark-white.svg";
 </script>
 
 <svelte:head>
 	<title>Gether - Collaborative GitHub Markdown Editing</title>
-	<meta name="description" content="Edit GitHub Markdown files collaboratively in real time. Replace github.com with gether.timokuehne.com and start editing together." />
+	<meta
+		name="description"
+		content="Edit GitHub Markdown files collaboratively in real time. Replace github.com with gether.timokuehne.com and start editing together."
+	/>
 </svelte:head>
 
 <div class="min-h-screen bg-background">
@@ -16,32 +19,35 @@
 			href="https://github.com/tnkuehne/gether"
 			target="_blank"
 			rel="noopener noreferrer"
-			class="opacity-70 hover:opacity-100 transition-opacity"
+			class="opacity-70 transition-opacity hover:opacity-100"
 			aria-label="View source on GitHub"
 		>
-			<img src={githubMark} alt="GitHub" class="w-8 h-8 dark:hidden" />
-			<img src={githubMarkWhite} alt="GitHub" class="w-8 h-8 hidden dark:block" />
+			<img src={githubMark} alt="GitHub" class="h-8 w-8 dark:hidden" />
+			<img src={githubMarkWhite} alt="GitHub" class="hidden h-8 w-8 dark:block" />
 		</a>
 	</header>
 
-	<main class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+	<main class="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
 		<!-- Hero Section -->
-		<section class="text-center mb-16">
-			<h1 class="text-2xl sm:text-3xl font-semibold text-foreground mb-4">
+		<section class="mb-16 text-center">
+			<h1 class="mb-4 text-2xl font-semibold text-foreground sm:text-3xl">
 				Edit GitHub Markdown files collaboratively — in real time.
 			</h1>
-			<p class="text-muted-foreground mb-8">
-				Replace <code class="bg-muted px-1.5 py-0.5 rounded text-sm">github.com</code> with <code class="bg-muted px-1.5 py-0.5 rounded text-sm">gether.timokuehne.com</code> and start editing together.
+			<p class="mb-8 text-muted-foreground">
+				Replace <code class="rounded bg-muted px-1.5 py-0.5 text-sm">github.com</code> with
+				<code class="rounded bg-muted px-1.5 py-0.5 text-sm">gether.timokuehne.com</code> and start editing
+				together.
 			</p>
 
 			<!-- URL Example -->
-			<div class="bg-muted rounded-lg p-4 sm:p-6 text-left font-mono text-sm mb-8">
-				<div class="text-muted-foreground mb-2">
+			<div class="mb-8 rounded-lg bg-muted p-4 text-left font-mono text-sm sm:p-6">
+				<div class="mb-2 text-muted-foreground">
 					<span class="text-muted-foreground/60">github.com</span>/org/repo/blob/main/README.md
 				</div>
-				<div class="text-muted-foreground mb-2">→</div>
+				<div class="mb-2 text-muted-foreground">→</div>
 				<div class="text-foreground">
-					<span class="text-primary font-medium">gether.timokuehne.com</span>/org/repo/blob/main/README.md
+					<span class="font-medium text-primary">gether.timokuehne.com</span
+					>/org/repo/blob/main/README.md
 				</div>
 			</div>
 
@@ -52,18 +58,30 @@
 
 		<!-- How it works -->
 		<section class="mb-16">
-			<h2 class="text-lg font-medium text-foreground mb-6">How it works</h2>
+			<h2 class="mb-6 text-lg font-medium text-foreground">How it works</h2>
 			<ol class="space-y-4 text-muted-foreground">
 				<li class="flex gap-4">
-					<span class="shrink-0 w-6 h-6 rounded-full bg-muted text-foreground text-sm flex items-center justify-center font-medium">1</span>
+					<span
+						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
+						>1</span
+					>
 					<span>Open a Markdown file on GitHub</span>
 				</li>
 				<li class="flex gap-4">
-					<span class="shrink-0 w-6 h-6 rounded-full bg-muted text-foreground text-sm flex items-center justify-center font-medium">2</span>
-					<span>Replace <code class="bg-muted px-1.5 py-0.5 rounded text-xs">github.com</code> with <code class="bg-muted px-1.5 py-0.5 rounded text-xs">gether.timokuehne.com</code></span>
+					<span
+						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
+						>2</span
+					>
+					<span
+						>Replace <code class="rounded bg-muted px-1.5 py-0.5 text-xs">github.com</code> with
+						<code class="rounded bg-muted px-1.5 py-0.5 text-xs">gether.timokuehne.com</code></span
+					>
 				</li>
 				<li class="flex gap-4">
-					<span class="shrink-0 w-6 h-6 rounded-full bg-muted text-foreground text-sm flex items-center justify-center font-medium">3</span>
+					<span
+						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
+						>3</span
+					>
 					<span>Edit together and commit back to GitHub</span>
 				</li>
 			</ol>
@@ -71,7 +89,7 @@
 
 		<!-- Trust & Safety -->
 		<section class="mb-16">
-			<h2 class="text-lg font-medium text-foreground mb-6">Trust & safety</h2>
+			<h2 class="mb-6 text-lg font-medium text-foreground">Trust & safety</h2>
 			<ul class="space-y-3 text-muted-foreground">
 				<li class="flex gap-3">
 					<span class="text-foreground">•</span>
@@ -94,9 +112,15 @@
 
 		<!-- Open Source -->
 		<section>
-			<h2 class="text-lg font-medium text-foreground mb-4">Open source</h2>
+			<h2 class="mb-4 text-lg font-medium text-foreground">Open source</h2>
 			<p class="text-muted-foreground">
-				Fully open source. <a href="https://github.com/tnkuehne/gether" target="_blank" rel="noopener noreferrer" class="text-foreground underline underline-offset-4 hover:text-primary">View the source code on GitHub</a>.
+				Fully open source. <a
+					href="https://github.com/tnkuehne/gether"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="text-foreground underline underline-offset-4 hover:text-primary"
+					>View the source code on GitHub</a
+				>.
 			</p>
 		</section>
 	</main>

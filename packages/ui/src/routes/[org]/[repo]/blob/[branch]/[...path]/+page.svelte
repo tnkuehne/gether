@@ -1,24 +1,21 @@
 <script lang="ts">
-	import { page } from '$app/state';
-	import { Card, CardContent, CardHeader } from '$lib/components/ui/card';
-	import { Badge } from '$lib/components/ui/badge';
-	import { Button, buttonVariants } from '$lib/components/ui/button';
-	import { Separator } from '$lib/components/ui/separator';
-	import * as Dialog from '$lib/components/ui/dialog';
-	import * as Field from '$lib/components/ui/field';
-	import { Input } from '$lib/components/ui/input';
-	import { onDestroy, onMount } from 'svelte';
-	import CodeMirror from '$lib/components/editor/CodeMirror.svelte';
-	import { Octokit } from 'octokit';
-	import { authClient } from '$lib/auth-client';
-	import {
-		GITHUB_APP_INSTALL_URL,
-		commitFile
-	} from '$lib/github-app';
-	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from '$lib/components/ui/resizable';
-	import { Streamdown } from 'svelte-streamdown';
-	import type { PageProps } from './$types.js';
-	import posthog from 'posthog-js'
+	import { page } from "$app/state";
+	import { Card, CardContent, CardHeader } from "$lib/components/ui/card";
+	import { Badge } from "$lib/components/ui/badge";
+	import { Button, buttonVariants } from "$lib/components/ui/button";
+	import { Separator } from "$lib/components/ui/separator";
+	import * as Dialog from "$lib/components/ui/dialog";
+	import * as Field from "$lib/components/ui/field";
+	import { Input } from "$lib/components/ui/input";
+	import { onDestroy, onMount } from "svelte";
+	import CodeMirror from "$lib/components/editor/CodeMirror.svelte";
+	import { Octokit } from "octokit";
+	import { authClient } from "$lib/auth-client";
+	import { GITHUB_APP_INSTALL_URL, commitFile } from "$lib/github-app";
+	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from "$lib/components/ui/resizable";
+	import { Streamdown } from "svelte-streamdown";
+	import type { PageProps } from "./$types.js";
+	import posthog from "posthog-js";
 
 	const { data }: PageProps = $props();
 
@@ -27,7 +24,10 @@
 
 	// Check if file is markdown
 	const isMarkdown = $derived(
-		path!.endsWith('.md') || path!.endsWith('.markdown') || path!.endsWith('.mdx') || path!.endsWith('.svx')
+		path!.endsWith(".md") ||
+			path!.endsWith(".markdown") ||
+			path!.endsWith(".mdx") ||
+			path!.endsWith(".svx"),
 	);
 	let showPreview = $state(true);
 
@@ -41,36 +41,39 @@
 	let needsGitHubApp = $derived(data.needsGitHubApp);
 	let hasGitHubApp = $derived(data.hasGitHubApp);
 
-	let content = $derived(data.fileData?.content ?? '');
-	let originalContent = $derived(data.fileData?.content ?? '');
+	let content = $derived(data.fileData?.content ?? "");
+	let originalContent = $derived(data.fileData?.content ?? "");
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
-	let lastValue = $derived(data.fileData?.content ?? '');
-	let remoteCursors = $state<Map<string, { position: number; color: string; userName?: string }>>(new Map());
-	let remoteSelections = $state<Map<string, { from: number; to: number; color: string; userName?: string }>>(new Map());
-	let myConnectionId = $state<string>('');
+	let lastValue = $derived(data.fileData?.content ?? "");
+	let remoteCursors = $state<Map<string, { position: number; color: string; userName?: string }>>(
+		new Map(),
+	);
+	let remoteSelections = $state<
+		Map<string, { from: number; to: number; color: string; userName?: string }>
+	>(new Map());
+	let myConnectionId = $state<string>("");
 	let editorRef = null;
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
 	// Commit dialog state
 	let commitDialogOpen = $state(false);
-	let commitMessage = $state('');
+	let commitMessage = $state("");
 	let isCommitting = $state(false);
 	let commitError = $state<string | null>(null);
 
 	onMount(() => {
-        if (fileData && $session.data) {
-            connect();
-        }
-    });
+		if (fileData && $session.data) {
+			connect();
+		}
+	});
 
-    $effect(() => {
-        // Re-connect when session becomes available (if not already connected)
-        if (fileData && $session.data && !ws) {
-            connect();
-        }
-    });
-
+	$effect(() => {
+		// Re-connect when session becomes available (if not already connected)
+		if (fileData && $session.data && !ws) {
+			connect();
+		}
+	});
 
 	function connect() {
 		if (!fileData) return;
@@ -85,20 +88,20 @@
 			ws = null;
 		}
 
-		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
 
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {
-			ws?.send(JSON.stringify({ type: 'init', content: content }));
+			ws?.send(JSON.stringify({ type: "init", content: content }));
 		};
 
 		ws.onmessage = (event) => {
 			const data = JSON.parse(event.data);
 
 			switch (data.type) {
-				case 'init': {
+				case "init": {
 					if (data.connectionId) {
 						myConnectionId = data.connectionId;
 					}
@@ -112,7 +115,7 @@
 					break;
 				}
 
-				case 'change': {
+				case "change": {
 					// Skip our own changes
 					if (data.connectionId && data.connectionId === myConnectionId) {
 						break;
@@ -126,13 +129,17 @@
 					break;
 				}
 
-				case 'cursor': {
-					if (data.position !== undefined && data.connectionId && data.connectionId !== myConnectionId) {
+				case "cursor": {
+					if (
+						data.position !== undefined &&
+						data.connectionId &&
+						data.connectionId !== myConnectionId
+					) {
 						const color = getCursorColor(data.connectionId);
 						remoteCursors.set(data.connectionId, {
 							position: data.position,
 							color,
-							userName: data.userName
+							userName: data.userName,
 						});
 						remoteCursors = new Map(remoteCursors);
 
@@ -142,7 +149,7 @@
 								from: data.selection.from,
 								to: data.selection.to,
 								color,
-								userName: data.userName
+								userName: data.userName,
 							});
 							remoteSelections = new Map(remoteSelections);
 						} else {
@@ -154,7 +161,7 @@
 					break;
 				}
 
-				case 'cursor-leave': {
+				case "cursor-leave": {
 					if (data.connectionId) {
 						remoteCursors.delete(data.connectionId);
 						remoteCursors = new Map(remoteCursors);
@@ -174,7 +181,7 @@
 		};
 
 		ws.onerror = (error) => {
-			console.error('WebSocket error:', error);
+			console.error("WebSocket error:", error);
 		};
 	}
 
@@ -188,14 +195,18 @@
 		// Capture PostHog event when user starts editing
 		if (!hasStartedEditing) {
 			hasStartedEditing = true;
-			posthog.capture('file_edit_started', {
-				fileType: path?.split('.').pop(),
+			posthog.capture("file_edit_started", {
+				fileType: path?.split(".").pop(),
 			});
 		}
 
 		// Simple diff: find where the change occurred
 		let from = 0;
-		while (from < lastValue.length && from < newValue.length && lastValue[from] === newValue[from]) {
+		while (
+			from < lastValue.length &&
+			from < newValue.length &&
+			lastValue[from] === newValue[from]
+		) {
 			from++;
 		}
 
@@ -209,38 +220,40 @@
 		const insert = newValue.slice(from, newEnd);
 
 		// Send change
-		ws.send(JSON.stringify({
-			type: 'change',
-			changes: { from, to: lastEnd, insert }
-		}));
+		ws.send(
+			JSON.stringify({
+				type: "change",
+				changes: { from, to: lastEnd, insert },
+			}),
+		);
 
 		lastValue = newValue;
 	}
-
-
 
 	function handleCursorChange(position: number, selection?: { from: number; to: number }) {
 		if (!ws || ws.readyState !== WebSocket.OPEN) {
 			return;
 		}
 
-		ws.send(JSON.stringify({
-			type: 'cursor',
-			position,
-			selection,
-			userName: $session.data?.user.name
-		}));
+		ws.send(
+			JSON.stringify({
+				type: "cursor",
+				position,
+				selection,
+				userName: $session.data?.user.name,
+			}),
+		);
 	}
 
 	function getCursorColor(connectionId: string): string {
 		const colors = [
-			'rgba(59, 130, 246, 0.8)',   // blue
-			'rgba(239, 68, 68, 0.8)',    // red
-			'rgba(16, 185, 129, 0.8)',   // green
-			'rgba(245, 158, 11, 0.8)',   // orange
-			'rgba(139, 92, 246, 0.8)',   // purple
-			'rgba(236, 72, 153, 0.8)',   // pink
-			'rgba(20, 184, 166, 0.8)',   // teal
+			"rgba(59, 130, 246, 0.8)", // blue
+			"rgba(239, 68, 68, 0.8)", // red
+			"rgba(16, 185, 129, 0.8)", // green
+			"rgba(245, 158, 11, 0.8)", // orange
+			"rgba(139, 92, 246, 0.8)", // purple
+			"rgba(236, 72, 153, 0.8)", // pink
+			"rgba(20, 184, 166, 0.8)", // teal
 		];
 
 		let hash = 0;
@@ -251,7 +264,11 @@
 	}
 
 	function handleReset() {
-		if (confirm('Are you sure you want to reset to the original GitHub content? All unsaved changes will be lost.')) {
+		if (
+			confirm(
+				"Are you sure you want to reset to the original GitHub content? All unsaved changes will be lost.",
+			)
+		) {
 			isRemoteUpdate = true;
 			content = originalContent;
 			lastValue = originalContent;
@@ -259,10 +276,12 @@
 
 			// Broadcast the reset to other connected clients
 			if (ws && ws.readyState === WebSocket.OPEN) {
-				ws.send(JSON.stringify({
-					type: 'change',
-					changes: { from: 0, to: lastValue.length, insert: originalContent }
-				}));
+				ws.send(
+					JSON.stringify({
+						type: "change",
+						changes: { from: 0, to: lastValue.length, insert: originalContent },
+					}),
+				);
 			}
 		}
 	}
@@ -271,11 +290,11 @@
 		let accessToken;
 
 		try {
-		    const response = await authClient.getAccessToken({ providerId: 'github' })
+			const response = await authClient.getAccessToken({ providerId: "github" });
 			accessToken = response.data.accessToken;
 		} catch (error) {
-		    console.error('Error getting access token:', error);
-		    return;
+			console.error("Error getting access token:", error);
+			return;
 		}
 
 		if (!accessToken || !fileData || !commitMessage.trim()) {
@@ -295,21 +314,22 @@
 				branch,
 				content,
 				commitMessage.trim(),
-				fileData.sha
+				fileData.sha,
 			);
 
 			// Update file data with new SHA
 			fileData.sha = result.sha;
 			originalContent = content;
-			commitMessage = '';
+			commitMessage = "";
 			commitDialogOpen = false;
 		} catch (err: any) {
 			if (err.status === 409) {
-				commitError = 'Conflict: The file has been modified on GitHub. Please refresh and try again.';
+				commitError =
+					"Conflict: The file has been modified on GitHub. Please refresh and try again.";
 			} else if (err.status === 422) {
-				commitError = 'The file content is unchanged or the commit message is invalid.';
+				commitError = "The file content is unchanged or the commit message is invalid.";
 			} else {
-				commitError = err.message || 'Failed to commit changes';
+				commitError = err.message || "Failed to commit changes";
 			}
 		} finally {
 			isCommitting = false;
@@ -353,7 +373,7 @@
 					<Button
 						onclick={async () => {
 							await authClient.signIn.social({
-								provider: 'github',
+								provider: "github",
 								callbackURL: window.location.href,
 							});
 						}}
@@ -402,8 +422,8 @@
 					<div class="mt-4 space-y-2">
 						<p class="text-sm text-muted-foreground">
 							{#if hasGitHubApp}
-								The GitHub App is installed but doesn't have access to this repository.
-								Click below to add this repository to your installation.
+								The GitHub App is installed but doesn't have access to this repository. Click below
+								to add this repository to your installation.
 							{:else}
 								Install our GitHub App to access private repositories with fine-grained permissions.
 								You can select which specific repositories to grant access to.
@@ -413,22 +433,21 @@
 							onclick={async () => {
 								// Get OAuth URL with state from Better Auth
 								const response = await authClient.signIn.social({
-									provider: 'github',
+									provider: "github",
 									callbackURL: window.location.href,
-									disableRedirect: true
+									disableRedirect: true,
 								});
 
 								// Extract state parameter from OAuth URL
 								if (response?.data.url) {
 									const oauthUrl = new URL(response.data.url);
-									const state = oauthUrl.searchParams.get('state');
+									const state = oauthUrl.searchParams.get("state");
 
 									window.location.href = `${GITHUB_APP_INSTALL_URL}?state=${state}`;
-
 								}
 							}}
 						>
-							{hasGitHubApp ? 'Configure GitHub App' : 'Install GitHub App'}
+							{hasGitHubApp ? "Configure GitHub App" : "Install GitHub App"}
 						</Button>
 					</div>
 				{/if}
@@ -439,26 +458,30 @@
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-4">
 				<div class="flex items-center gap-3">
 					<span class="font-mono text-sm font-medium">{fileData.name}</span>
-					<Badge variant="outline">{repoData.language || 'Text'}</Badge>
+					<Badge variant="outline">{repoData.language || "Text"}</Badge>
 				</div>
 
 				<div class="flex items-center gap-2">
 					{#if isMarkdown}
 						<Button
-							onclick={() => { showPreview = !showPreview; }}
-							variant={showPreview ? 'secondary' : 'ghost'}
+							onclick={() => {
+								showPreview = !showPreview;
+							}}
+							variant={showPreview ? "secondary" : "ghost"}
 							size="sm"
-							title={showPreview ? 'Hide preview' : 'Show preview'}
+							title={showPreview ? "Hide preview" : "Show preview"}
 						>
-							{showPreview ? 'Hide Preview' : 'Show Preview'}
+							{showPreview ? "Hide Preview" : "Show Preview"}
 						</Button>
 					{/if}
 					{#if canEdit}
 						<Button
-							onclick={() => { commitDialogOpen = true; }}
+							onclick={() => {
+								commitDialogOpen = true;
+							}}
 							disabled={!hasUnsavedChanges}
 							size="sm"
-							title={hasUnsavedChanges ? 'Commit changes to GitHub' : 'No changes to commit'}
+							title={hasUnsavedChanges ? "Commit changes to GitHub" : "No changes to commit"}
 						>
 							Commit
 						</Button>
@@ -467,7 +490,7 @@
 							disabled={!hasUnsavedChanges}
 							variant="ghost"
 							size="sm"
-							title={hasUnsavedChanges ? 'Reset to original GitHub content' : 'No changes to reset'}
+							title={hasUnsavedChanges ? "Reset to original GitHub content" : "No changes to reset"}
 						>
 							Reset
 						</Button>
@@ -475,7 +498,7 @@
 					<a
 						href={fileData.downloadUrl}
 						download
-						class={buttonVariants({ variant: 'ghost', size: 'sm' })}
+						class={buttonVariants({ variant: "ghost", size: "sm" })}
 					>
 						Download
 					</a>
@@ -483,7 +506,7 @@
 						href={fileData.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						class={buttonVariants({ variant: 'ghost', size: 'sm' })}
+						class={buttonVariants({ variant: "ghost", size: "sm" })}
 					>
 						View on GitHub →
 					</a>
@@ -509,10 +532,7 @@
 						<ResizableHandle withHandle />
 						<ResizablePane defaultSize={50} minSize={30}>
 							<div class="h-full overflow-auto bg-background p-6">
-								<Streamdown
-									content={content}
-									baseTheme="shadcn"
-								/>
+								<Streamdown {content} baseTheme="shadcn" />
 							</div>
 						</ResizablePane>
 					</ResizablePaneGroup>
@@ -548,27 +568,27 @@
 				placeholder="Update {path.split('/').pop()}"
 				aria-invalid={!!commitError}
 				onkeydown={(e) => {
-					if (e.key === 'Enter' && commitMessage.trim() && !isCommitting) {
+					if (e.key === "Enter" && commitMessage.trim() && !isCommitting) {
 						handleCommit();
 					}
 				}}
 			/>
-			<Field.Description>
-				Describe the changes you made to this file.
-			</Field.Description>
+			<Field.Description>Describe the changes you made to this file.</Field.Description>
 			{#if commitError}
 				<Field.Error>{commitError}</Field.Error>
 			{/if}
 		</Field.Field>
 		<Dialog.Footer>
-			<Button variant="outline" onclick={() => { commitDialogOpen = false; }}>
+			<Button
+				variant="outline"
+				onclick={() => {
+					commitDialogOpen = false;
+				}}
+			>
 				Cancel
 			</Button>
-			<Button
-				onclick={handleCommit}
-				disabled={!commitMessage.trim() || isCommitting}
-			>
-				{isCommitting ? 'Committing...' : 'Commit'}
+			<Button onclick={handleCommit} disabled={!commitMessage.trim() || isCommitting}>
+				{isCommitting ? "Committing..." : "Commit"}
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>

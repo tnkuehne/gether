@@ -32,7 +32,7 @@
 			variant: isActive ? "outline" : "ghost",
 			size,
 		}),
-		className
+		className,
 	)}
 	children={children || Fallback}
 	{...restProps}

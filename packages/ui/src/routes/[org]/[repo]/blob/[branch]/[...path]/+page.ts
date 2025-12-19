@@ -1,12 +1,12 @@
-import type { PageLoad } from './$types';
-import { Octokit } from 'octokit';
-import { authClient } from '$lib/auth-client';
+import type { PageLoad } from "./$types";
+import { Octokit } from "octokit";
+import { authClient } from "$lib/auth-client";
 import {
 	fetchFileContent,
 	fetchRepoMetadata,
 	checkWritePermission,
-	hasGitHubAppInstalled
-} from '$lib/github-app';
+	hasGitHubAppInstalled,
+} from "$lib/github-app";
 
 export const ssr = false;
 
@@ -15,13 +15,16 @@ export const load: PageLoad = async ({ params, fetch }) => {
 	const path = params.path;
 
 	// Get session and token
-  const session = await authClient.getSession({ fetchOptions: { customFetchImpl: fetch }});
+	const session = await authClient.getSession({ fetchOptions: { customFetchImpl: fetch } });
 	let githubToken: string | undefined;
 	let hasGitHubApp = false;
 
 	if (session.data) {
 		try {
-			const tokenResponse = await authClient.getAccessToken({ providerId: 'github', fetchOptions: { customFetchImpl: fetch } });
+			const tokenResponse = await authClient.getAccessToken({
+				providerId: "github",
+				fetchOptions: { customFetchImpl: fetch },
+			});
 			githubToken = tokenResponse?.data?.accessToken;
 
 			if (githubToken) {
@@ -37,7 +40,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 	try {
 		const [fileData, repoData] = await Promise.all([
 			fetchFileContent(octokit, org, repo, path, branch),
-			fetchRepoMetadata(octokit, org, repo)
+			fetchRepoMetadata(octokit, org, repo),
 		]);
 
 		let canEdit = false;
@@ -51,7 +54,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			canEdit,
 			hasGitHubApp,
 			error: null,
-			needsGitHubApp: false
+			needsGitHubApp: false,
 		};
 	} catch (err: any) {
 		if (err.status === 404) {
@@ -62,9 +65,9 @@ export const load: PageLoad = async ({ params, fetch }) => {
 				canEdit: false,
 				hasGitHubApp,
 				error: needsGitHubApp
-					? 'This appears to be a private repository. Install the GitHub App to grant access.'
-					: 'File or repository not found',
-				needsGitHubApp
+					? "This appears to be a private repository. Install the GitHub App to grant access."
+					: "File or repository not found",
+				needsGitHubApp,
 			};
 		} else if (err.status === 403) {
 			return {
@@ -72,8 +75,8 @@ export const load: PageLoad = async ({ params, fetch }) => {
 				repoData: null,
 				canEdit: false,
 				hasGitHubApp,
-				error: 'Rate limit exceeded or access denied',
-				needsGitHubApp: false
+				error: "Rate limit exceeded or access denied",
+				needsGitHubApp: false,
 			};
 		}
 
@@ -82,8 +85,8 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			repoData: null,
 			canEdit: false,
 			hasGitHubApp,
-			error: err.message || 'Failed to fetch',
-			needsGitHubApp: false
+			error: err.message || "Failed to fetch",
+			needsGitHubApp: false,
 		};
 	}
 };

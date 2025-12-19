@@ -21,7 +21,7 @@ export class RenderComponentConfig<TComponent extends Component> {
 	props: ComponentProps<TComponent> | Record<string, never>;
 	constructor(
 		component: TComponent,
-		props: ComponentProps<TComponent> | Record<string, never> = {}
+		props: ComponentProps<TComponent> | Record<string, never> = {},
 	) {
 		this.component = component;
 		this.props = props;
