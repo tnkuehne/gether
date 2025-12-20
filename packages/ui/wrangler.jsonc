@@ -10,19 +10,19 @@
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
 		"binding": "ASSETS",
-		"directory": ".svelte-kit/cloudflare"
+		"directory": ".svelte-kit/cloudflare",
 	},
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
 	"durable_objects": {
 		"bindings": [
 			{
 				"name": "COLLAB_DOCUMENT",
 				"class_name": "CollaborativeDocument",
-				"script_name": "collab"
-			}
-		]
+				"script_name": "collab",
+			},
+		],
 	},
 	"ratelimits": [
 		{
@@ -30,12 +30,18 @@
 			"namespace_id": "1001",
 			"simple": {
 				"limit": 20,
-				"period": 60
-			}
-		}
+				"period": 60,
+			},
+		},
 	],
 	"vars": {
 		"PUBLIC_GITHUB_APP_ID": 2484880,
-		"PUBLIC_GITHUB_APP_SLUG": "gether-app"
-	}
+		"PUBLIC_GITHUB_APP_SLUG": "gether-app",
+	},
+	"services": [
+		{
+			"binding": "PREVIEW_SERVICE",
+			"service": "preview",
+		},
+	],
 }

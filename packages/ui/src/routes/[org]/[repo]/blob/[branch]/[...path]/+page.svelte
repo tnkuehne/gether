@@ -65,6 +65,11 @@
 	let isCommitting = $state(false);
 	let commitError = $state<string | null>(null);
 
+	// Live Preview state
+	let sandboxStatus = $state<"idle" | "starting" | "running" | "error">("idle");
+	let previewUrl = $state<string | null>(null);
+	let sandboxError = $state<string | null>(null);
+
 	onMount(() => {
 		if (fileData && $session.data) {
 			connect();
@@ -340,6 +345,51 @@
 			ws.close();
 		}
 	});
+
+	async function startLivePreview() {
+		sandboxStatus = "starting";
+		sandboxError = null;
+
+		try {
+			const response = await fetch(`/${org}/${repo}/blob/${branch}/${path}/sandbox`, {
+				method: "POST",
+			});
+
+			const result = await response.json();
+
+			if (result.success) {
+				sandboxStatus = "running";
+				previewUrl = result.previewUrl;
+			} else {
+				sandboxStatus = "error";
+				sandboxError = result.error || "Failed to start preview";
+			}
+		} catch (err: unknown) {
+			sandboxStatus = "error";
+			sandboxError = err instanceof Error ? err.message : "Failed to start preview";
+		}
+	}
+
+	async function checkSandboxStatus() {
+		try {
+			const response = await fetch(`/${org}/${repo}/blob/${branch}/${path}/sandbox`);
+			const result = await response.json();
+
+			if (result.success && result.status === "running") {
+				sandboxStatus = "running";
+				previewUrl = result.previewUrl;
+			}
+		} catch {
+			// Ignore errors on status check
+		}
+	}
+
+	// Check if sandbox is already running on mount
+	onMount(() => {
+		if ($session.data) {
+			checkSandboxStatus();
+		}
+	});
 </script>
 
 <div class="container mx-auto max-w-7xl px-4 py-8">
@@ -511,6 +561,33 @@
 					>
 						View on GitHub →
 					</a>
+
+					{#if $session.data}
+						<Separator orientation="vertical" class="h-6" />
+						{#if sandboxStatus === "idle"}
+							<Button onclick={startLivePreview} variant="outline" size="sm">Live Preview</Button>
+						{:else if sandboxStatus === "starting"}
+							<Button disabled variant="outline" size="sm">Starting...</Button>
+						{:else if sandboxStatus === "running" && previewUrl}
+							<a
+								href={previewUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								class={buttonVariants({ variant: "default", size: "sm" })}
+							>
+								Open Preview
+							</a>
+						{:else if sandboxStatus === "error"}
+							<Button
+								onclick={startLivePreview}
+								variant="destructive"
+								size="sm"
+								title={sandboxError || "Error"}
+							>
+								Retry Preview
+							</Button>
+						{/if}
+					{/if}
 				</div>
 			</CardHeader>
 

@@ -15,7 +15,7 @@
 
 			if (user?.id) {
 				posthog.set_config({ persistence: "localStorage+cookie" });
-				posthog.identify(user.id, {
+				posthog.identify(user.email, {
 					email: user.email,
 					name: user.name,
 				});
