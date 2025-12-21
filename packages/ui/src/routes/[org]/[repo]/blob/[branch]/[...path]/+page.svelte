@@ -14,6 +14,7 @@
 	import { authClient } from "$lib/auth-client";
 	import { GITHUB_APP_INSTALL_URL, commitFile } from "$lib/github-app";
 	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from "$lib/components/ui/resizable";
+	import * as Tooltip from "$lib/components/ui/tooltip";
 	import { Streamdown } from "svelte-streamdown";
 	import type { PageProps } from "./$types.js";
 	import posthog from "posthog-js";
@@ -653,9 +654,34 @@
 						View on GitHub →
 					</a>
 
-					{#if $session.data && getherConfig}
+					{#if $session.data}
 						<Separator orientation="vertical" class="h-6" />
-						{#if sandboxStatus === "idle"}
+						{#if !getherConfig}
+							<Tooltip.Root>
+								<Tooltip.Trigger
+									class="{buttonVariants({
+										variant: 'outline',
+										size: 'sm',
+									})} cursor-not-allowed opacity-50"
+								>
+									Live Preview
+								</Tooltip.Trigger>
+								<Tooltip.Content>
+									<p>
+										Add <code class="rounded bg-muted px-1 text-muted-foreground">gether.jsonc</code
+										> to enable.
+									</p>
+									<a
+										href="https://github.com/tnkuehne/gether#live-preview"
+										target="_blank"
+										rel="noopener noreferrer"
+										class="text-secondary underline"
+									>
+										Learn more
+									</a>
+								</Tooltip.Content>
+							</Tooltip.Root>
+						{:else if sandboxStatus === "idle"}
 							<Button onclick={startLivePreview} variant="outline" size="sm"
 								>Start Live Preview</Button
 							>

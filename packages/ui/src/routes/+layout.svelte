@@ -4,6 +4,7 @@
 	import { authClient } from "$lib/auth-client";
 	import { browser } from "$app/environment";
 	import posthog from "posthog-js";
+	import * as Tooltip from "$lib/components/ui/tooltip";
 
 	let { children } = $props();
 
@@ -25,4 +26,6 @@
 </script>
 
 <ModeWatcher />
-{@render children()}
+<Tooltip.Provider>
+	{@render children()}
+</Tooltip.Provider>
