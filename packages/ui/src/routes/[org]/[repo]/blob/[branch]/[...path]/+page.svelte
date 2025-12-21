@@ -17,6 +17,7 @@
 	import { Streamdown } from "svelte-streamdown";
 	import type { PageProps } from "./$types.js";
 	import posthog from "posthog-js";
+	import { startPreview, getSandboxStatus } from "./sandbox.remote";
 
 	const { data }: PageProps = $props();
 
@@ -351,11 +352,7 @@
 		sandboxError = null;
 
 		try {
-			const response = await fetch(`/${org}/${repo}/blob/${branch}/${path}/sandbox`, {
-				method: "POST",
-			});
-
-			const result = await response.json();
+			const result = await startPreview({ org: org!, repo: repo!, branch: branch! });
 
 			if (result.success) {
 				sandboxStatus = "running";
@@ -372,12 +369,11 @@
 
 	async function checkSandboxStatus() {
 		try {
-			const response = await fetch(`/${org}/${repo}/blob/${branch}/${path}/sandbox`);
-			const result = await response.json();
+			const result = await getSandboxStatus({ org: org!, repo: repo!, branch: branch! });
 
 			if (result.success && result.status === "running") {
 				sandboxStatus = "running";
-				previewUrl = result.previewUrl;
+				previewUrl = result.previewUrl ?? null;
 			}
 		} catch {
 			// Ignore errors on status check
