@@ -17,7 +17,7 @@
 	import { Streamdown } from "svelte-streamdown";
 	import type { PageProps } from "./$types.js";
 	import posthog from "posthog-js";
-	import { startPreview, getSandboxStatus } from "./sandbox.remote";
+	import { startPreview, getSandboxStatus, syncFileToSandbox } from "./sandbox.remote";
 
 	const { data }: PageProps = $props();
 
@@ -70,6 +70,43 @@
 	let sandboxStatus = $state<"idle" | "starting" | "running" | "error">("idle");
 	let previewUrl = $state<string | null>(null);
 	let sandboxError = $state<string | null>(null);
+
+	// HMR file sync state
+	let syncTimeoutId: ReturnType<typeof setTimeout> | null = null;
+	let isSyncing = $state(false);
+
+	// Debounced file sync for HMR
+	function scheduleSyncToSandbox(newContent: string) {
+		// Only sync if sandbox is running
+		if (sandboxStatus !== "running") return;
+
+		// Clear existing timeout
+		if (syncTimeoutId) {
+			clearTimeout(syncTimeoutId);
+		}
+
+		// Debounce: wait 300ms after last change before syncing
+		syncTimeoutId = setTimeout(async () => {
+			isSyncing = true;
+			try {
+				const result = await syncFileToSandbox({
+					org: org!,
+					repo: repo!,
+					branch: branch!,
+					filePath: path!,
+					content: newContent,
+				});
+
+				if (!result.success) {
+					console.error("Failed to sync file to sandbox:", result.error);
+				}
+			} catch (err) {
+				console.error("Error syncing file to sandbox:", err);
+			} finally {
+				isSyncing = false;
+			}
+		}, 300);
+	}
 
 	onMount(() => {
 		if (fileData && $session.data) {
@@ -135,6 +172,9 @@
 					// This also updates the bound content value
 					editorRef?.applyRemoteChange({ from, to, insert });
 					lastValue = content;
+
+					// Sync remote changes to sandbox for HMR
+					scheduleSyncToSandbox(content);
 					break;
 				}
 
@@ -232,6 +272,9 @@
 		);
 
 		lastValue = newValue;
+
+		// Sync to sandbox for HMR if preview is running
+		scheduleSyncToSandbox(newValue);
 	}
 
 	function handleCursorChange(position: number, selection?: { from: number; to: number }) {
@@ -344,6 +387,9 @@
 	onDestroy(() => {
 		if (ws) {
 			ws.close();
+		}
+		if (syncTimeoutId) {
+			clearTimeout(syncTimeoutId);
 		}
 	});
 
@@ -565,6 +611,9 @@
 						{:else if sandboxStatus === "starting"}
 							<Button disabled variant="outline" size="sm">Starting...</Button>
 						{:else if sandboxStatus === "running" && previewUrl}
+							{#if isSyncing}
+								<span class="text-xs text-muted-foreground">Syncing...</span>
+							{/if}
 							<a
 								href={previewUrl}
 								target="_blank"

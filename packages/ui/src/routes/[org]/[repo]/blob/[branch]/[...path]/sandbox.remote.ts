@@ -9,6 +9,14 @@ const sandboxParams = v.object({
 	branch: v.string(),
 });
 
+const syncFileParams = v.object({
+	org: v.string(),
+	repo: v.string(),
+	branch: v.string(),
+	filePath: v.string(),
+	content: v.string(),
+});
+
 export const startPreview = command(sandboxParams, async ({ org, repo, branch }) => {
 	const event = getRequestEvent();
 
@@ -93,3 +101,38 @@ export const getSandboxStatus = query(sandboxParams, async ({ org, repo, branch 
 		};
 	}
 });
+
+export const syncFileToSandbox = command(
+	syncFileParams,
+	async ({ org, repo, branch, filePath, content }) => {
+		const event = getRequestEvent();
+
+		if (!event.locals.user) {
+			error(401, "Unauthorized");
+		}
+
+		try {
+			// Call the preview worker via RPC
+			// @ts-expect-error - Service binding types not generated
+			const result = await event.platform!.env.PREVIEW_SERVICE.syncFile({
+				org,
+				repo,
+				branch,
+				filePath,
+				content,
+			});
+
+			return result as {
+				success: boolean;
+				error?: string;
+			};
+		} catch (err: unknown) {
+			const e = err as { message?: string };
+			console.error("Sync file error:", e);
+			return {
+				success: false,
+				error: e.message || "Failed to sync file",
+			};
+		}
+	},
+);

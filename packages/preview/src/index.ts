@@ -27,6 +27,19 @@ interface StatusResult {
 	error?: string;
 }
 
+interface SyncFileOptions {
+	org: string;
+	repo: string;
+	branch: string;
+	filePath: string;
+	content: string;
+}
+
+interface SyncFileResult {
+	success: boolean;
+	error?: string;
+}
+
 export default class PreviewService extends WorkerEntrypoint<Env> {
 	/**
 	 * Start a live preview for a repository.
@@ -190,6 +203,39 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 				sandboxId,
 				status: "not_found",
 				error: error.message,
+			};
+		}
+	}
+
+	/**
+	 * Sync a file to the sandbox filesystem.
+	 * This triggers HMR when the dev server detects the file change.
+	 */
+	async syncFile(options: SyncFileOptions): Promise<SyncFileResult> {
+		const { org, repo, branch, filePath, content } = options;
+
+		// Create sandbox ID from org/repo/branch
+		const sandboxId = `${org}-${repo}-${branch}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+
+		// Get sandbox
+		const sandbox = getSandbox(this.env.Sandbox, sandboxId);
+
+		try {
+			// Construct the full file path in the sandbox
+			const fullPath = `/workspace/${repo}/${filePath}`;
+
+			// Write the file content to the sandbox
+			await sandbox.writeFile(fullPath, content);
+
+			return {
+				success: true,
+			};
+		} catch (err: unknown) {
+			const error = err as { message?: string };
+			console.error("Failed to sync file:", error);
+			return {
+				success: false,
+				error: error.message || "Failed to sync file",
 			};
 		}
 	}
