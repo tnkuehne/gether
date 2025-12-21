@@ -42,7 +42,6 @@ export const startPreview = command(sandboxParams, async ({ org, repo, branch })
 			repo,
 			branch,
 			githubToken,
-			hostname: event.url.hostname,
 		});
 
 		if (result.success) {
@@ -83,7 +82,6 @@ export const getSandboxStatus = query(sandboxParams, async ({ org, repo, branch 
 			org,
 			repo,
 			branch,
-			hostname: event.url.hostname,
 		});
 
 		return result as {

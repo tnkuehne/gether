@@ -7,36 +7,38 @@
 	"name": "preview",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-05-06",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
-		"enabled": true
+		"enabled": true,
+	},
+	"vars": {
+		// The hostname where this preview service is accessible
+		// Local dev: "localhost:8789"
+		// Production: your preview service domain (e.g., "preview.yourdomain.com")
+		"PREVIEW_HOST": "localhost:8789",
 	},
 	"containers": [
 		{
 			"class_name": "Sandbox",
 			"image": "./Dockerfile",
 			"instance_type": "lite",
-			"max_instances": 1
-		}
+			"max_instances": 1,
+		},
 	],
 	"durable_objects": {
 		"bindings": [
 			{
 				"class_name": "Sandbox",
-				"name": "Sandbox"
-			}
-		]
+				"name": "Sandbox",
+			},
+		],
 	},
 	"migrations": [
 		{
-			"new_sqlite_classes": [
-				"Sandbox"
-			],
-			"tag": "v1"
-		}
-	]
+			"new_sqlite_classes": ["Sandbox"],
+			"tag": "v1",
+		},
+	],
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

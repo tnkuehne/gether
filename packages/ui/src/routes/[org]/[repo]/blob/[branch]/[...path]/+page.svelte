@@ -32,6 +32,7 @@
 			path!.endsWith(".svx"),
 	);
 	let showPreview = $state(true);
+	let previewMode = $state<"markdown" | "live">("markdown");
 
 	const session = authClient.useSession();
 
@@ -403,6 +404,9 @@
 			if (result.success) {
 				sandboxStatus = "running";
 				previewUrl = result.previewUrl;
+				// Automatically show preview pane and switch to live mode
+				showPreview = true;
+				previewMode = "live";
 			} else {
 				sandboxStatus = "error";
 				sandboxError = result.error || "Failed to start preview";
@@ -420,6 +424,8 @@
 			if (result.success && result.status === "running") {
 				sandboxStatus = "running";
 				previewUrl = result.previewUrl ?? null;
+				// Show preview pane if sandbox is already running
+				showPreview = true;
 			}
 		} catch {
 			// Ignore errors on status check
@@ -553,7 +559,7 @@
 				</div>
 
 				<div class="flex items-center gap-2">
-					{#if isMarkdown}
+					{#if isMarkdown || sandboxStatus === "running"}
 						<Button
 							onclick={() => {
 								showPreview = !showPreview;
@@ -564,6 +570,34 @@
 						>
 							{showPreview ? "Hide Preview" : "Show Preview"}
 						</Button>
+					{/if}
+					{#if showPreview && sandboxStatus === "running" && isMarkdown}
+						<div class="flex items-center rounded-md border">
+							<Button
+								onclick={() => {
+									previewMode = "markdown";
+								}}
+								variant={previewMode === "markdown" ? "secondary" : "ghost"}
+								size="sm"
+								class="rounded-r-none border-0"
+							>
+								Markdown
+							</Button>
+							<Separator orientation="vertical" class="h-6" />
+							<Button
+								onclick={() => {
+									previewMode = "live";
+								}}
+								variant={previewMode === "live" ? "secondary" : "ghost"}
+								size="sm"
+								class="rounded-l-none border-0"
+							>
+								Live
+								{#if isSyncing}
+									<span class="ml-1 text-xs text-muted-foreground">...</span>
+								{/if}
+							</Button>
+						</div>
 					{/if}
 					{#if canEdit}
 						<Button
@@ -607,20 +641,24 @@
 					{#if $session.data}
 						<Separator orientation="vertical" class="h-6" />
 						{#if sandboxStatus === "idle"}
-							<Button onclick={startLivePreview} variant="outline" size="sm">Live Preview</Button>
+							<Button onclick={startLivePreview} variant="outline" size="sm"
+								>Start Live Preview</Button
+							>
 						{:else if sandboxStatus === "starting"}
-							<Button disabled variant="outline" size="sm">Starting...</Button>
+							<Button disabled variant="outline" size="sm">Starting sandbox...</Button>
 						{:else if sandboxStatus === "running" && previewUrl}
 							{#if isSyncing}
 								<span class="text-xs text-muted-foreground">Syncing...</span>
 							{/if}
+							<Badge variant="outline" class="text-green-600">Live</Badge>
 							<a
 								href={previewUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								class={buttonVariants({ variant: "default", size: "sm" })}
+								class={buttonVariants({ variant: "ghost", size: "sm" })}
+								title="Open in new tab"
 							>
-								Open Preview
+								Open in tab
 							</a>
 						{:else if sandboxStatus === "error"}
 							<Button
@@ -639,7 +677,7 @@
 			<Separator />
 
 			<CardContent class="p-0">
-				{#if isMarkdown && showPreview}
+				{#if showPreview && (isMarkdown || sandboxStatus === "running")}
 					<ResizablePaneGroup direction="horizontal" class="min-h-125">
 						<ResizablePane defaultSize={50} minSize={30}>
 							<CodeMirror
@@ -654,9 +692,26 @@
 						</ResizablePane>
 						<ResizableHandle withHandle />
 						<ResizablePane defaultSize={50} minSize={30}>
-							<div class="h-full overflow-auto bg-background p-6">
-								<Streamdown {content} baseTheme="shadcn" />
-							</div>
+							{#if previewMode === "live" && sandboxStatus === "running" && previewUrl}
+								<iframe
+									src={previewUrl}
+									title="Live Preview"
+									class="h-full w-full border-0"
+									sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+								></iframe>
+							{:else if isMarkdown}
+								<div class="h-full overflow-auto bg-background p-6">
+									<Streamdown {content} baseTheme="shadcn" />
+								</div>
+							{:else if sandboxStatus === "running" && previewUrl}
+								<!-- Non-markdown file with live preview running -->
+								<iframe
+									src={previewUrl}
+									title="Live Preview"
+									class="h-full w-full border-0"
+									sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+								></iframe>
+							{/if}
 						</ResizablePane>
 					</ResizablePaneGroup>
 				{:else}

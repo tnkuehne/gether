@@ -8,7 +8,6 @@ interface StartPreviewOptions {
 	repo: string;
 	branch: string;
 	githubToken?: string;
-	hostname: string;
 }
 
 interface PreviewResult {
@@ -46,7 +45,11 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 	 * Clones the repo, installs dependencies, and starts the dev server.
 	 */
 	async startPreview(options: StartPreviewOptions): Promise<PreviewResult> {
-		const { org, repo, branch, githubToken, hostname } = options;
+		const { org, repo, branch, githubToken } = options;
+
+		// Get the preview service hostname from environment
+		// This is where the preview service is accessible (e.g., localhost:8789 or preview.yourdomain.com)
+		const hostname = this.env.PREVIEW_HOST;
 
 		// Create sandbox ID from org/repo/branch (lowercase for URL compatibility)
 		const sandboxId = `${org}-${repo}-${branch}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
@@ -146,13 +149,9 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 	/**
 	 * Check the status of an existing preview sandbox.
 	 */
-	async getStatus(options: {
-		org: string;
-		repo: string;
-		branch: string;
-		hostname: string;
-	}): Promise<StatusResult> {
-		const { org, repo, branch, hostname } = options;
+	async getStatus(options: { org: string; repo: string; branch: string }): Promise<StatusResult> {
+		const { org, repo, branch } = options;
+		const hostname = this.env.PREVIEW_HOST;
 
 		// Create sandbox ID from org/repo/branch
 		const sandboxId = `${org}-${repo}-${branch}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
