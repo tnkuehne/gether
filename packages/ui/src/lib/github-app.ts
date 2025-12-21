@@ -65,6 +65,49 @@ export async function fetchFileContent(
 }
 
 /**
+ * Gether preview configuration from gether.jsonc
+ */
+export interface GetherConfig {
+	packageManager: "npm" | "pnpm" | "yarn" | "bun";
+	root: string;
+	install: string;
+	dev: string;
+	port: number;
+}
+
+/**
+ * Fetch gether.jsonc config from repository root
+ * Returns null if the file doesn't exist
+ */
+export async function fetchGetherConfig(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	branch: string,
+): Promise<GetherConfig | null> {
+	try {
+		const { data: fileResponse } = await octokit.rest.repos.getContent({
+			owner: org,
+			repo: repo,
+			path: "gether.jsonc",
+			ref: branch,
+		});
+
+		if ("content" in fileResponse && fileResponse.type === "file") {
+			const decodedContent = atob(fileResponse.content);
+			// Strip JSONC comments (single-line // comments)
+			const jsonContent = decodedContent.replace(/\/\/.*$/gm, "");
+			return JSON.parse(jsonContent) as GetherConfig;
+		}
+
+		return null;
+	} catch {
+		// File doesn't exist or other error
+		return null;
+	}
+}
+
+/**
  * Fetch repository metadata from GitHub
  */
 export async function fetchRepoMetadata(octokit: Octokit, org: string, repo: string) {

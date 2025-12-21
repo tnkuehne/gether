@@ -3,10 +3,26 @@ import { error } from "@sveltejs/kit";
 import { command, query, getRequestEvent } from "$app/server";
 import { auth } from "$lib/server/auth";
 
+const getherConfigSchema = v.object({
+	packageManager: v.picklist(["npm", "pnpm", "yarn", "bun"]),
+	root: v.string(),
+	install: v.string(),
+	dev: v.string(),
+	port: v.number(),
+});
+
 const sandboxParams = v.object({
 	org: v.string(),
 	repo: v.string(),
 	branch: v.string(),
+	config: getherConfigSchema,
+});
+
+const sandboxStatusParams = v.object({
+	org: v.string(),
+	repo: v.string(),
+	branch: v.string(),
+	port: v.number(),
 });
 
 const syncFileParams = v.object({
@@ -17,7 +33,7 @@ const syncFileParams = v.object({
 	content: v.string(),
 });
 
-export const startPreview = command(sandboxParams, async ({ org, repo, branch }) => {
+export const startPreview = command(sandboxParams, async ({ org, repo, branch, config }) => {
 	const event = getRequestEvent();
 
 	if (!event.locals.user) {
@@ -42,6 +58,7 @@ export const startPreview = command(sandboxParams, async ({ org, repo, branch })
 			repo,
 			branch,
 			githubToken,
+			config,
 		});
 
 		if (result.success) {
@@ -68,7 +85,7 @@ export const startPreview = command(sandboxParams, async ({ org, repo, branch })
 	}
 });
 
-export const getSandboxStatus = query(sandboxParams, async ({ org, repo, branch }) => {
+export const getSandboxStatus = query(sandboxStatusParams, async ({ org, repo, branch, port }) => {
 	const event = getRequestEvent();
 
 	if (!event.locals.user) {
@@ -82,6 +99,7 @@ export const getSandboxStatus = query(sandboxParams, async ({ org, repo, branch 
 			org,
 			repo,
 			branch,
+			port,
 		});
 
 		return result as {

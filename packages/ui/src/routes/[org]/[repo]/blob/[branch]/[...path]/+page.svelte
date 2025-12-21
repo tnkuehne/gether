@@ -43,6 +43,7 @@
 	let canEdit = $derived(data.canEdit);
 	let needsGitHubApp = $derived(data.needsGitHubApp);
 	let hasGitHubApp = $derived(data.hasGitHubApp);
+	let getherConfig = $derived(data.getherConfig);
 
 	let content = $derived(data.fileData?.content ?? "");
 	let originalContent = $derived(data.fileData?.content ?? "");
@@ -395,11 +396,18 @@
 	});
 
 	async function startLivePreview() {
+		if (!getherConfig) return;
+
 		sandboxStatus = "starting";
 		sandboxError = null;
 
 		try {
-			const result = await startPreview({ org: org!, repo: repo!, branch: branch! });
+			const result = await startPreview({
+				org: org!,
+				repo: repo!,
+				branch: branch!,
+				config: getherConfig,
+			});
 
 			if (result.success) {
 				sandboxStatus = "running";
@@ -418,8 +426,15 @@
 	}
 
 	async function checkSandboxStatus() {
+		if (!getherConfig) return;
+
 		try {
-			const result = await getSandboxStatus({ org: org!, repo: repo!, branch: branch! });
+			const result = await getSandboxStatus({
+				org: org!,
+				repo: repo!,
+				branch: branch!,
+				port: getherConfig.port,
+			});
 
 			if (result.success && result.status === "running") {
 				sandboxStatus = "running";
@@ -434,7 +449,7 @@
 
 	// Check if sandbox is already running on mount
 	onMount(() => {
-		if ($session.data) {
+		if ($session.data && getherConfig) {
 			checkSandboxStatus();
 		}
 	});
@@ -638,7 +653,7 @@
 						View on GitHub →
 					</a>
 
-					{#if $session.data}
+					{#if $session.data && getherConfig}
 						<Separator orientation="vertical" class="h-6" />
 						{#if sandboxStatus === "idle"}
 							<Button onclick={startLivePreview} variant="outline" size="sm"

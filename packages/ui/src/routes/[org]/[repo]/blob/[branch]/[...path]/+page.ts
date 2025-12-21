@@ -6,6 +6,7 @@ import {
 	fetchRepoMetadata,
 	checkWritePermission,
 	hasGitHubAppInstalled,
+	fetchGetherConfig,
 } from "$lib/github-app";
 
 export const ssr = false;
@@ -38,9 +39,10 @@ export const load: PageLoad = async ({ params, fetch }) => {
 	const octokit = new Octokit(githubToken ? { auth: githubToken } : undefined);
 
 	try {
-		const [fileData, repoData] = await Promise.all([
+		const [fileData, repoData, getherConfig] = await Promise.all([
 			fetchFileContent(octokit, org, repo, path, branch),
 			fetchRepoMetadata(octokit, org, repo),
+			fetchGetherConfig(octokit, org, repo, branch),
 		]);
 
 		let canEdit = false;
@@ -53,6 +55,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			repoData,
 			canEdit,
 			hasGitHubApp,
+			getherConfig,
 			error: null,
 			needsGitHubApp: false,
 		};
@@ -65,6 +68,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 				repoData: null,
 				canEdit: false,
 				hasGitHubApp,
+				getherConfig: null,
 				error: needsGitHubApp
 					? "This appears to be a private repository. Install the GitHub App to grant access."
 					: "File or repository not found",
@@ -76,6 +80,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 				repoData: null,
 				canEdit: false,
 				hasGitHubApp,
+				getherConfig: null,
 				error: "Rate limit exceeded or access denied",
 				needsGitHubApp: false,
 			};
@@ -86,6 +91,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			repoData: null,
 			canEdit: false,
 			hasGitHubApp,
+			getherConfig: null,
 			error: error.message || "Failed to fetch",
 			needsGitHubApp: false,
 		};

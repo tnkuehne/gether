@@ -3,11 +3,20 @@ import { getSandbox, proxyToSandbox } from "@cloudflare/sandbox";
 
 export { Sandbox } from "@cloudflare/sandbox";
 
+interface GetherConfig {
+	packageManager: "npm" | "pnpm" | "yarn" | "bun";
+	root: string;
+	install: string;
+	dev: string;
+	port: number;
+}
+
 interface StartPreviewOptions {
 	org: string;
 	repo: string;
 	branch: string;
 	githubToken?: string;
+	config: GetherConfig;
 }
 
 interface PreviewResult {
@@ -45,7 +54,7 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 	 * Clones the repo, installs dependencies, and starts the dev server.
 	 */
 	async startPreview(options: StartPreviewOptions): Promise<PreviewResult> {
-		const { org, repo, branch, githubToken } = options;
+		const { org, repo, branch, githubToken, config } = options;
 
 		// Get the preview service hostname from environment
 		// This is where the preview service is accessible (e.g., localhost:8789 or preview.yourdomain.com)
@@ -79,15 +88,20 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 				});
 			}
 
-			// Install pnpm if not available
-			const pnpmCheck = await sandbox.exec("which pnpm");
-			if (!pnpmCheck.success) {
-				console.log("Installing pnpm...");
-				await sandbox.exec("npm install -g pnpm");
+			// Determine working directory based on config.root
+			const workDir = config.root === "." ? repoDir : `${repoDir}/${config.root}`;
+
+			// Install package manager if needed (for non-npm)
+			if (config.packageManager !== "npm") {
+				const pmCheck = await sandbox.exec(`which ${config.packageManager}`);
+				if (!pmCheck.success) {
+					console.log(`Installing ${config.packageManager}...`);
+					await sandbox.exec(`npm install -g ${config.packageManager}`);
+				}
 			}
 
-			// Install dependencies
-			const installResult = await sandbox.exec(`cd ${repoDir} && pnpm install`);
+			// Install dependencies using config
+			const installResult = await sandbox.exec(`cd ${workDir} && ${config.install}`);
 			console.log("Install result:", {
 				success: installResult.success,
 				exitCode: installResult.exitCode,
@@ -106,18 +120,18 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 			// Kill any existing processes to free up ports
 			await sandbox.killAllProcesses();
 
-			// Start the dev server as a background process
+			// Start the dev server using config
 			const devServer = await sandbox.startProcess(
-				`cd ${repoDir} && pnpm dev --port 5173 --host 0.0.0.0`,
+				`cd ${workDir} && ${config.dev} --host 0.0.0.0`,
 				{},
 			);
 
 			console.log("Dev server process ID:", devServer.id);
 
 			// Wait for the dev server to be ready (with timeout)
-			console.log("Waiting for dev server on port 5173...");
+			console.log(`Waiting for dev server on port ${config.port}...`);
 			try {
-				await devServer.waitForPort(5173, { timeout: 60000 });
+				await devServer.waitForPort(config.port, { timeout: 60000 });
 				console.log("Dev server is ready!");
 			} catch (waitErr) {
 				// Get process logs to see what went wrong
@@ -127,7 +141,7 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 			}
 
 			// Expose the port and get the preview URL
-			const exposed = await sandbox.exposePort(5173, { hostname });
+			const exposed = await sandbox.exposePort(config.port, { hostname });
 
 			return {
 				success: true,
@@ -149,8 +163,13 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 	/**
 	 * Check the status of an existing preview sandbox.
 	 */
-	async getStatus(options: { org: string; repo: string; branch: string }): Promise<StatusResult> {
-		const { org, repo, branch } = options;
+	async getStatus(options: {
+		org: string;
+		repo: string;
+		branch: string;
+		port: number;
+	}): Promise<StatusResult> {
+		const { org, repo, branch, port } = options;
 		const hostname = this.env.PREVIEW_HOST;
 
 		// Create sandbox ID from org/repo/branch
@@ -162,12 +181,12 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 		try {
 			// Check if port is already exposed
 			const exposedPorts = await sandbox.getExposedPorts(hostname);
-			const port5173 = exposedPorts.find((p) => p.port === 5173);
+			const exposedPort = exposedPorts.find((p) => p.port === port);
 
-			if (port5173) {
+			if (exposedPort) {
 				return {
 					success: true,
-					previewUrl: port5173.url,
+					previewUrl: exposedPort.url,
 					sandboxId,
 					status: "running",
 				};
@@ -175,13 +194,11 @@ export default class PreviewService extends WorkerEntrypoint<Env> {
 
 			// Check if there are running processes
 			const processes = await sandbox.listProcesses();
-			const hasDevServer = processes.some(
-				(p) => p.command.includes("pnpm dev") && p.status === "running",
-			);
+			const hasDevServer = processes.some((p) => p.status === "running");
 
 			if (hasDevServer) {
 				// Dev server running but port not exposed, try to expose it
-				const exposed = await sandbox.exposePort(5173, { hostname });
+				const exposed = await sandbox.exposePort(port, { hostname });
 				return {
 					success: true,
 					previewUrl: exposed.url,
