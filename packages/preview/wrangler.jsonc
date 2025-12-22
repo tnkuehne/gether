@@ -11,12 +11,6 @@
 	"observability": {
 		"enabled": true,
 	},
-	"vars": {
-		// The hostname where this preview service is accessible
-		// Local dev: "localhost:8789"
-		// Production: your preview service domain (e.g., "preview.yourdomain.com")
-		"PREVIEW_HOST": "localhost:8789",
-	},
 	"containers": [
 		{
 			"class_name": "Sandbox",
