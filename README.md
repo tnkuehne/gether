@@ -19,7 +19,7 @@
 
 Add config File `gether.jsonc`
 
-```json
+```jsonc
 {
 	// Package manager: "npm", "pnpm", "yarn", or "bun"
 	"packageManager": "pnpm",
@@ -34,7 +34,7 @@ Add config File `gether.jsonc`
 	"dev": "pnpm dev",
 
 	// Port the dev server listens on
-	"port": 5173
+	"port": 5173,
 }
 ```
 
