@@ -43,7 +43,10 @@ export const startPreview = command(sandboxParams, async ({ org, repo, branch, c
 
 	// Check feature flag for live preview
 	const posthog = createPostHogClient();
-	const isLivePreviewEnabled = await posthog.isFeatureEnabled("live-preview", event.locals.user.id);
+	const isLivePreviewEnabled = await posthog.isFeatureEnabled(
+		"live-preview",
+		event.locals.user.email,
+	);
 
 	if (!isLivePreviewEnabled) {
 		return {
