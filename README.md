@@ -11,6 +11,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [ ] File navigation
 - [ ] (Automatic) Branching and Forking
 - [ ] Opening draft pull requests
+- [ ] Showing and writing comments on pull requests in UI
 - [ ] Media upload
 - [ ] Collections for easier content navigation
 
