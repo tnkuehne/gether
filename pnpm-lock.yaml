@@ -86,6 +86,9 @@ importers:
       '@lucide/svelte':
         specifier: ^0.561.0
         version: 0.561.0(svelte@5.46.0)
+      '@posthog/rollup-plugin':
+        specifier: ^1.1.5
+        version: 1.1.5(rollup@4.53.3)
       '@sveltejs/adapter-cloudflare':
         specifier: ^7.2.4
         version: 7.2.4(@sveltejs/kit@2.49.2(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.46.0)(vite@7.2.7(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)))(svelte@5.46.0)(vite@7.2.7(@types/node@24.10.4)(jiti@2.6.1)(lightningcss@1.30.2)))(wrangler@4.54.0(@cloudflare/workers-types@4.20251213.0))
@@ -134,6 +137,9 @@ importers:
       posthog-js:
         specifier: ^1.309.1
         version: 1.309.1
+      posthog-node:
+        specifier: ^5.17.4
+        version: 5.17.4
       svelte:
         specifier: ^5.43.8
         version: 5.46.0
@@ -1046,8 +1052,18 @@ packages:
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
 
+  '@posthog/cli@0.5.19':
+    resolution: {integrity: sha512-grbvwiGOhazH3uDaI5/pshVXANEC6EkINiEL/5LvCskcLlktCMWc9dK33xWla4jPV5GXsJ9kF6/rDF/dwmWtew==}
+    engines: {node: '>=14', npm: '>=6'}
+    hasBin: true
+
   '@posthog/core@1.8.1':
     resolution: {integrity: sha512-jfzBtQIk9auRi/biO+G/gumK5KxqsD5wOr7XpYMROE/I3pazjP4zIziinp21iQuIQJMXrDvwt9Af3njgOGwtew==}
+
+  '@posthog/rollup-plugin@1.1.5':
+    resolution: {integrity: sha512-tN4G3Uthin/bKycFs5oKVdHpMkV7UIS2lNZ+Ls2pkI42mANSnaByU4bDwtEl9ELko/LrtRxWDO1+5RJWTLW63w==}
+    peerDependencies:
+      rollup: '>= 4.0.0'
 
   '@rollup/rollup-android-arm-eabi@4.53.3':
     resolution: {integrity: sha512-mRSi+4cBjrRLoaal2PnqH82Wqyb+d3HsPUN/W+WslCXsZsyHa9ZeQQX/pQsZaVIWDkPcpV6jJ+3KLbTbgnwv8w==}
@@ -2648,6 +2664,10 @@ packages:
   posthog-js@1.309.1:
     resolution: {integrity: sha512-JUJcQhYzNNKO0cgnSbowCsVi2RTu75XGZ2EmnTQti4tMGRCTOv/HCnZasdFniBGZ0rLugQkaScYca/84Ta2u5Q==}
 
+  posthog-node@5.17.4:
+    resolution: {integrity: sha512-hrd+Do/DMt40By12ESIDUfD81V9OASjq9XHjycZrGiD8cX/ZwCIVSJLUb7nQmvSCWcKII+u+nnPVuc4LjTDl9g==}
+    engines: {node: '>=20'}
+
   preact@10.28.0:
     resolution: {integrity: sha512-rytDAoiXr3+t6OIP3WGlDd0ouCUG1iCWzkcY3++Nreuoi17y6T5i/zRhe6uYfoVcxq6YU+sBtJouuRDsq8vvqA==}
 
@@ -3975,9 +3995,27 @@ snapshots:
 
   '@poppinss/exception@1.2.3': {}
 
+  '@posthog/cli@0.5.19':
+    dependencies:
+      axios: 1.13.2
+      axios-proxy-builder: 0.1.2
+      console.table: 0.10.0
+      detect-libc: 2.1.2
+      rimraf: 6.1.2
+    transitivePeerDependencies:
+      - debug
+
   '@posthog/core@1.8.1':
     dependencies:
       cross-spawn: 7.0.6
+
+  '@posthog/rollup-plugin@1.1.5(rollup@4.53.3)':
+    dependencies:
+      '@posthog/cli': 0.5.19
+      '@posthog/core': 1.8.1
+      rollup: 4.53.3
+    transitivePeerDependencies:
+      - debug
 
   '@rollup/rollup-android-arm-eabi@4.53.3':
     optional: true
@@ -5608,6 +5646,10 @@ snapshots:
       fflate: 0.4.8
       preact: 10.28.0
       web-vitals: 4.2.4
+
+  posthog-node@5.17.4:
+    dependencies:
+      '@posthog/core': 1.8.1
 
   preact@10.28.0: {}
 

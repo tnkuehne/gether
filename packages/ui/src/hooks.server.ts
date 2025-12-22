@@ -1,6 +1,8 @@
 import { auth } from "$lib/server/auth";
 import { svelteKitHandler } from "better-auth/svelte-kit";
 import { building } from "$app/environment";
+import type { HandleServerError } from "@sveltejs/kit";
+import { createPostHogClient } from "$lib/server/posthog";
 
 export async function handle({ event, resolve }) {
 	const { pathname } = event.url;
@@ -43,3 +45,9 @@ export async function handle({ event, resolve }) {
 
 	return svelteKitHandler({ event, resolve, auth, building });
 }
+
+export const handleError = async ({ error, status }: HandleServerError) => {
+	if (status !== 404) {
+		createPostHogClient().captureException(error);
+	}
+};
