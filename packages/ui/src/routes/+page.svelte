@@ -8,7 +8,7 @@
 	<title>Gether - Collaborative GitHub Markdown Editing</title>
 	<meta
 		name="description"
-		content="Edit GitHub Markdown files collaboratively in real time. Replace github.com with gether.timokuehne.com and start editing together."
+		content="Edit GitHub Markdown files collaboratively in real time. Replace github.com with gether.md and start editing together."
 	/>
 </svelte:head>
 
@@ -35,8 +35,7 @@
 			</h1>
 			<p class="mb-8 text-muted-foreground">
 				Replace <code class="rounded bg-muted px-1.5 py-0.5 text-sm">github.com</code> with
-				<code class="rounded bg-muted px-1.5 py-0.5 text-sm">gether.timokuehne.com</code> and start editing
-				together.
+				<code class="rounded bg-muted px-1.5 py-0.5 text-sm">gether.md</code> and start editing together.
 			</p>
 
 			<!-- URL Example -->
@@ -46,12 +45,11 @@
 				</div>
 				<div class="mb-2 text-muted-foreground">→</div>
 				<div class="text-foreground">
-					<span class="font-medium text-primary">gether.timokuehne.com</span
-					>/org/repo/blob/main/README.md
+					<span class="font-medium text-primary">gether.md</span>/org/repo/blob/main/README.md
 				</div>
 			</div>
 
-			<Button href="https://gether.timokuehne.com/tnkuehne/gether/blob/main/README.md" size="lg">
+			<Button href="https://gether.md/tnkuehne/gether/blob/main/README.md" size="lg">
 				Try it on a GitHub Markdown file
 			</Button>
 		</section>
@@ -74,7 +72,7 @@
 					>
 					<span
 						>Replace <code class="rounded bg-muted px-1.5 py-0.5 text-xs">github.com</code> with
-						<code class="rounded bg-muted px-1.5 py-0.5 text-xs">gether.timokuehne.com</code></span
+						<code class="rounded bg-muted px-1.5 py-0.5 text-xs">gether.md</code></span
 					>
 				</li>
 				<li class="flex gap-4">
