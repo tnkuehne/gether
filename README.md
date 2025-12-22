@@ -1,5 +1,7 @@
 # Gether
 
+A collaborative content editor for markdown or static site generators without lock-in
+
 ## Features
 
 - [x] Live collaboration
