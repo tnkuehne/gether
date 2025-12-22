@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
+		"prebuild": "npm install -g @posthog/cli",
 		"build": "vite build",
 		"preview": "pnpm run build && wrangler dev",
 		"prepare": "svelte-kit sync || echo ''",
