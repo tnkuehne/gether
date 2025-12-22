@@ -78,6 +78,18 @@
 	let syncTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	let isSyncing = $state(false);
 
+	// Feature flag state for live preview
+	let isLivePreviewEnabled = $state(false);
+
+	// Check feature flag once PostHog flags are loaded
+	$effect(() => {
+		if ($session.data) {
+			posthog.onFeatureFlags(() => {
+				isLivePreviewEnabled = posthog.isFeatureEnabled("live-preview") ?? false;
+			});
+		}
+	});
+
 	// Debounced file sync for HMR
 	function scheduleSyncToSandbox(newContent: string) {
 		// Only sync if sandbox is running
@@ -448,9 +460,9 @@
 		}
 	}
 
-	// Check if sandbox is already running on mount
-	onMount(() => {
-		if ($session.data && getherConfig) {
+	// Check if sandbox is already running once feature flags are loaded
+	$effect(() => {
+		if ($session.data && getherConfig && isLivePreviewEnabled) {
 			checkSandboxStatus();
 		}
 	});
@@ -654,7 +666,7 @@
 						View on GitHub →
 					</a>
 
-					{#if $session.data}
+					{#if $session.data && isLivePreviewEnabled}
 						<Separator orientation="vertical" class="h-6" />
 						{#if !getherConfig}
 							<Tooltip.Root>

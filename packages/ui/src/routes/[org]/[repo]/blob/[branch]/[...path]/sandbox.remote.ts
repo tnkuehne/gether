@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { error } from "@sveltejs/kit";
 import { command, query, getRequestEvent } from "$app/server";
 import { auth } from "$lib/server/auth";
+import { createPostHogClient } from "$lib/server/posthog";
 
 const getherConfigSchema = v.object({
 	packageManager: v.picklist(["npm", "pnpm", "yarn", "bun"]),
@@ -38,6 +39,18 @@ export const startPreview = command(sandboxParams, async ({ org, repo, branch, c
 
 	if (!event.locals.user) {
 		error(401, "Unauthorized");
+	}
+
+	// Check feature flag for live preview
+	const posthog = createPostHogClient();
+	const isLivePreviewEnabled = await posthog.isFeatureEnabled("live-preview", event.locals.user.id);
+
+	if (!isLivePreviewEnabled) {
+		return {
+			success: false as const,
+			error: "Live preview is not enabled for your account",
+			details: "This feature is currently in beta.",
+		};
 	}
 
 	// Get GitHub access token for cloning private repos
