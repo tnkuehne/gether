@@ -33,12 +33,11 @@
 	const path = page.params.path;
 
 	// Check if file is markdown
-	const isMarkdown = $derived(
+	const isMarkdown =
 		path!.endsWith(".md") ||
-			path!.endsWith(".markdown") ||
-			path!.endsWith(".mdx") ||
-			path!.endsWith(".svx"),
-	);
+		path!.endsWith(".markdown") ||
+		path!.endsWith(".mdx") ||
+		path!.endsWith(".svx");
 	let showPreview = $state(true);
 	let previewMode = $state<"markdown" | "live">("markdown");
 	let mobileView = $state<"code" | "preview">("code");
