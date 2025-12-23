@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from "$app/state";
 	import { goto } from "$app/navigation";
-	import { createFileDiscovery } from "./github-files.svelte";
+	import { getRepoFiles } from "./github-files";
 	import { getDefaultBranch, createFile } from "./github";
 	import {
 		Card,
@@ -20,15 +20,18 @@
 	import FileText from "@lucide/svelte/icons/file-text";
 	import Folder from "@lucide/svelte/icons/folder";
 	import Plus from "@lucide/svelte/icons/plus";
-	import Loader from "@lucide/svelte/icons/loader";
 
 	let dialogOpen = $state(false);
 	let filePath = $state("");
 	let isCreating = $state(false);
 	let createError = $state<string | null>(null);
 
-	const discovery = createFileDiscovery(page.params.org, page.params.repo);
-	const defaultBranchPromise = getDefaultBranch(page.params.org, page.params.repo);
+	const repoDataPromise = getDefaultBranch(page.params.org, page.params.repo).then(
+		async (branch) => ({
+			branch,
+			files: await getRepoFiles(page.params.org, page.params.repo, branch),
+		}),
+	);
 
 	async function handleCreateFile() {
 		if (!filePath.trim()) return;
@@ -53,8 +56,8 @@
 			dialogOpen = false;
 			filePath = "";
 
-			const defaultBranch = await defaultBranchPromise;
-			goto(`/${page.params.org}/${page.params.repo}/blob/${defaultBranch}/${result.path}`);
+			const { branch } = await repoDataPromise;
+			goto(`/${page.params.org}/${page.params.repo}/blob/${branch}/${result.path}`);
 		} catch (err) {
 			createError = err instanceof Error ? err.message : "Failed to create file";
 		} finally {
@@ -71,13 +74,7 @@
 		<CardHeader class="flex flex-row items-center justify-between">
 			<div>
 				<CardTitle>Files</CardTitle>
-				<CardDescription>
-					{#if discovery.isLoading}
-						Discovering files...
-					{:else}
-						Select a file to view
-					{/if}
-				</CardDescription>
+				<CardDescription>Select a file to view</CardDescription>
 			</div>
 			<Dialog.Root bind:open={dialogOpen}>
 				<Dialog.Trigger>
@@ -122,64 +119,50 @@
 			</Dialog.Root>
 		</CardHeader>
 		<CardContent>
-			{#if discovery.error}
+			{#await repoDataPromise}
+				<div class="space-y-2">
+					{#each Array.from({ length: 4 }, (_, i) => i) as i (i)}
+						<div class="flex items-center gap-3">
+							<Skeleton class="size-4" />
+							<Skeleton class="h-4 w-64" />
+						</div>
+					{/each}
+				</div>
+			{:then { branch, files }}
+				{#if files.length === 0}
+					<p class="text-muted-foreground">No markdown files found in this repository.</p>
+				{:else}
+					<div class="space-y-1">
+						{#each files as item (item.path)}
+							{@const depth = item.path.split("/").length - 1}
+							{#if item.type === "dir"}
+								<div
+									class="flex items-center gap-2 py-1.5 text-muted-foreground"
+									style="padding-left: {depth * 1.25}rem"
+								>
+									<Folder class="size-4" />
+									<span class="text-sm font-medium">{item.name}</span>
+								</div>
+							{:else}
+								<a
+									href="/{page.params.org}/{page.params.repo}/blob/{branch}/{item.path}"
+									class="flex items-center gap-2 rounded-md py-1.5 transition-colors hover:bg-muted"
+									style="padding-left: {depth * 1.25}rem"
+								>
+									<FileText class="size-4 text-muted-foreground" />
+									<span class="text-sm">{item.name}</span>
+								</a>
+							{/if}
+						{/each}
+					</div>
+				{/if}
+			{:catch error}
 				<Alert variant="destructive">
 					<CircleAlert class="size-4" />
 					<AlertTitle>Error</AlertTitle>
-					<AlertDescription>Failed to load files: {discovery.error}</AlertDescription>
+					<AlertDescription>Failed to load files: {error.message}</AlertDescription>
 				</Alert>
-			{:else}
-				{#await defaultBranchPromise}
-					<div class="space-y-2">
-						{#each Array.from({ length: 4 }, (_, i) => i) as i (i)}
-							<div class="flex items-center gap-3">
-								<Skeleton class="size-4" />
-								<Skeleton class="h-4 w-64" />
-							</div>
-						{/each}
-					</div>
-				{:then defaultBranch}
-					{#if discovery.files.length === 0 && !discovery.isLoading}
-						<p class="text-muted-foreground">No markdown files found in this repository.</p>
-					{:else}
-						<div class="space-y-1">
-							{#each discovery.files as item (item.path)}
-								{@const depth = item.path.split("/").length - 1}
-								{#if item.type === "dir"}
-									<div
-										class="flex items-center gap-2 py-1.5 text-muted-foreground"
-										style="padding-left: {depth * 1.25}rem"
-									>
-										<Folder class="size-4" />
-										<span class="text-sm font-medium">{item.name}</span>
-									</div>
-								{:else}
-									<a
-										href="/{page.params.org}/{page.params.repo}/blob/{defaultBranch}/{item.path}"
-										class="flex items-center gap-2 rounded-md py-1.5 transition-colors hover:bg-muted"
-										style="padding-left: {depth * 1.25}rem"
-									>
-										<FileText class="size-4 text-muted-foreground" />
-										<span class="text-sm">{item.name}</span>
-									</a>
-								{/if}
-							{/each}
-							{#if discovery.isLoading}
-								<div class="flex items-center gap-2 py-1.5 text-muted-foreground">
-									<Loader class="size-4 animate-spin" />
-									<span class="text-sm">Scanning directories...</span>
-								</div>
-							{/if}
-						</div>
-					{/if}
-				{:catch error}
-					<Alert variant="destructive">
-						<CircleAlert class="size-4" />
-						<AlertTitle>Error</AlertTitle>
-						<AlertDescription>Failed to load repository info: {error.message}</AlertDescription>
-					</Alert>
-				{/await}
-			{/if}
+			{/await}
 		</CardContent>
 	</Card>
 </div>
