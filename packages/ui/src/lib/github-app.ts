@@ -108,29 +108,6 @@ export async function fetchGetherConfig(
 }
 
 /**
- * Fetch repository metadata from GitHub
- */
-export async function fetchRepoMetadata(octokit: Octokit, org: string, repo: string) {
-	const { data: repoResponse } = await octokit.rest.repos.get({
-		owner: org,
-		repo: repo,
-	});
-
-	return {
-		name: repoResponse.name,
-		fullName: repoResponse.full_name,
-		description: repoResponse.description,
-		defaultBranch: repoResponse.default_branch,
-		isPrivate: repoResponse.private,
-		stars: repoResponse.stargazers_count,
-		forks: repoResponse.forks_count,
-		language: repoResponse.language,
-		updatedAt: repoResponse.updated_at,
-		htmlUrl: repoResponse.html_url,
-	};
-}
-
-/**
  * Commit a file to the repository
  */
 export async function commitFile(
