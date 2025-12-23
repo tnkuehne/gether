@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from "$app/state";
-	import { getRepoFiles } from "./repo.remote";
+	import { goto } from "$app/navigation";
+	import { getRepoFiles, createFile } from "./repo.remote";
 	import {
 		Card,
 		CardContent,
@@ -10,9 +11,53 @@
 	} from "$lib/components/ui/card";
 	import { Alert, AlertDescription, AlertTitle } from "$lib/components/ui/alert";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import { Button } from "$lib/components/ui/button";
+	import { Input } from "$lib/components/ui/input";
+	import { Label } from "$lib/components/ui/label";
+	import * as Dialog from "$lib/components/ui/dialog";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import FileText from "@lucide/svelte/icons/file-text";
 	import Folder from "@lucide/svelte/icons/folder";
+	import Plus from "@lucide/svelte/icons/plus";
+
+	let dialogOpen = $state(false);
+	let filePath = $state("");
+	let isCreating = $state(false);
+	let createError = $state<string | null>(null);
+
+	async function handleCreateFile() {
+		if (!filePath.trim()) return;
+
+		// Ensure file has a valid extension
+		let finalPath = filePath.trim();
+		if (!finalPath.match(/\.(md|mdx|svx)$/i)) {
+			finalPath += ".md";
+		}
+
+		isCreating = true;
+		createError = null;
+
+		try {
+			const result = await createFile({
+				org: page.params.org,
+				repo: page.params.repo,
+				path: finalPath,
+				content: "",
+				message: `Create ${finalPath}`,
+			});
+
+			dialogOpen = false;
+			filePath = "";
+
+			// Navigate to the new file
+			const data = await getRepoFiles({ org: page.params.org, repo: page.params.repo });
+			goto(`/${page.params.org}/${page.params.repo}/blob/${data.defaultBranch}/${result.path}`);
+		} catch (err) {
+			createError = err instanceof Error ? err.message : "Failed to create file";
+		} finally {
+			isCreating = false;
+		}
+	}
 </script>
 
 <div class="container mx-auto py-8">
@@ -20,9 +65,52 @@
 	<p class="mb-6 text-muted-foreground">Markdown, MDX files</p>
 
 	<Card>
-		<CardHeader>
-			<CardTitle>Files</CardTitle>
-			<CardDescription>Select a file to view</CardDescription>
+		<CardHeader class="flex flex-row items-center justify-between">
+			<div>
+				<CardTitle>Files</CardTitle>
+				<CardDescription>Select a file to view</CardDescription>
+			</div>
+			<Dialog.Root bind:open={dialogOpen}>
+				<Dialog.Trigger>
+					{#snippet child({ props })}
+						<Button {...props} size="sm">
+							<Plus class="mr-2 size-4" />
+							Add file
+						</Button>
+					{/snippet}
+				</Dialog.Trigger>
+				<Dialog.Content>
+					<Dialog.Header>
+						<Dialog.Title>Create new file</Dialog.Title>
+						<Dialog.Description>Enter the path for your new markdown file.</Dialog.Description>
+					</Dialog.Header>
+					<div class="grid gap-4 py-4">
+						<div class="grid gap-2">
+							<Label for="file-path">File path</Label>
+							<Input
+								id="file-path"
+								placeholder="docs/example.md"
+								bind:value={filePath}
+								onkeydown={(e) => e.key === "Enter" && handleCreateFile()}
+							/>
+							<p class="text-sm text-muted-foreground">Supports .md, .mdx, and .svx extensions</p>
+						</div>
+						{#if createError}
+							<Alert variant="destructive">
+								<CircleAlert class="size-4" />
+								<AlertTitle>Error</AlertTitle>
+								<AlertDescription>{createError}</AlertDescription>
+							</Alert>
+						{/if}
+					</div>
+					<Dialog.Footer>
+						<Button variant="outline" onclick={() => (dialogOpen = false)}>Cancel</Button>
+						<Button onclick={handleCreateFile} disabled={isCreating || !filePath.trim()}>
+							{isCreating ? "Creating..." : "Create file"}
+						</Button>
+					</Dialog.Footer>
+				</Dialog.Content>
+			</Dialog.Root>
 		</CardHeader>
 		<CardContent>
 			{#await getRepoFiles({ org: page.params.org, repo: page.params.repo })}

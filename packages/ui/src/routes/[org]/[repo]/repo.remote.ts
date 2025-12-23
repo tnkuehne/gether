@@ -1,4 +1,4 @@
-import { query, getRequestEvent } from "$app/server";
+import { query, command, getRequestEvent } from "$app/server";
 import { error } from "@sveltejs/kit";
 import * as v from "valibot";
 import { Octokit } from "octokit";
@@ -100,3 +100,42 @@ export const getRepoFiles = query(repoParamsSchema, async ({ org, repo }) => {
 		files,
 	};
 });
+
+const createFileSchema = v.object({
+	org: v.string(),
+	repo: v.string(),
+	path: v.pipe(v.string(), v.nonEmpty()),
+	content: v.string(),
+	message: v.pipe(v.string(), v.nonEmpty()),
+});
+
+export const createFile = command(
+	createFileSchema,
+	async ({ org, repo, path, content, message }) => {
+		const accessToken = await getGitHubToken();
+		const octokit = new Octokit({ auth: accessToken });
+
+		// Get default branch
+		const { data: repoData } = await octokit.rest.repos.get({
+			owner: org,
+			repo,
+		});
+
+		const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+			owner: org,
+			repo,
+			path,
+			message,
+			content: btoa(content),
+			branch: repoData.default_branch,
+		});
+
+		// Refresh the file list
+		await getRepoFiles({ org, repo }).refresh();
+
+		return {
+			sha: data.content?.sha,
+			path: data.content?.path,
+		};
+	},
+);
