@@ -590,8 +590,12 @@
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-4">
 				<div class="flex items-center gap-3">
-					<span class="font-mono text-sm font-medium">{fileData.name}</span>
-					<Badge variant="outline">{repoData.language || "Text"}</Badge>
+					<a
+						href={fileData.url}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="font-mono text-sm font-medium hover:underline">{fileData.name}</a
+					>
 				</div>
 
 				<div class="flex items-center gap-2">
@@ -656,23 +660,6 @@
 							Reset
 						</Button>
 					{/if}
-
-					<a
-						href={fileData.downloadUrl}
-						download
-						class={buttonVariants({ variant: "ghost", size: "sm" })}
-					>
-						Download
-					</a>
-
-					<a
-						href={fileData.url}
-						target="_blank"
-						rel="noopener noreferrer"
-						class={buttonVariants({ variant: "ghost", size: "sm" })}
-					>
-						View on GitHub →
-					</a>
 
 					{#if $session.data && isLivePreviewEnabled}
 						<Separator orientation="vertical" class="h-6" />
