@@ -531,6 +531,19 @@
 				{#if $session.data && !canEdit}
 					<Separator orientation="vertical" class="h-4" />
 					<Badge variant="secondary">Read-only</Badge>
+				{:else if !$session.data}
+					<Separator orientation="vertical" class="h-4" />
+					<button
+						onclick={async () => {
+							await authClient.signIn.social({
+								provider: "github",
+								callbackURL: window.location.href,
+							});
+						}}
+						class="cursor-pointer"
+					>
+						<Badge variant="outline" class="hover:bg-muted">Sign in to edit & collaborate</Badge>
+					</button>
 				{/if}
 			</div>
 		{/if}
