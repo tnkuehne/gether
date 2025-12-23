@@ -66,12 +66,14 @@
 	}
 </script>
 
-<div class="container mx-auto py-8">
-	<h1 class="mb-2 text-3xl font-bold">{page.params.org}/{page.params.repo}</h1>
+<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
+	<h1 class="mb-2 text-2xl font-bold break-all sm:text-3xl">
+		{page.params.org}/{page.params.repo}
+	</h1>
 	<p class="mb-6 text-muted-foreground">Markdown, MDX files</p>
 
 	<Card>
-		<CardHeader class="flex flex-row items-center justify-between">
+		<CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div>
 				<CardTitle>Files</CardTitle>
 				<CardDescription>Select a file to view</CardDescription>
@@ -79,7 +81,7 @@
 			<Dialog.Root bind:open={dialogOpen}>
 				<Dialog.Trigger>
 					{#snippet child({ props })}
-						<Button {...props} size="sm">
+						<Button {...props} size="sm" class="w-full sm:w-auto">
 							<Plus class="mr-2 size-4" />
 							Add file
 						</Button>
@@ -124,7 +126,7 @@
 					{#each Array.from({ length: 4 }, (_, i) => i) as i (i)}
 						<div class="flex items-center gap-3">
 							<Skeleton class="size-4" />
-							<Skeleton class="h-4 w-64" />
+							<Skeleton class="h-4 w-48 sm:w-64" />
 						</div>
 					{/each}
 				</div>
