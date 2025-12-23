@@ -29,8 +29,8 @@
 
 	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 
-	const { org, repo, branch } = $derived(page.params);
-	const path = $derived(page.params.path);
+	const { org, repo, branch } = page.params;
+	const path = page.params.path;
 
 	// Check if file is markdown
 	const isMarkdown = $derived(
@@ -46,15 +46,14 @@
 	const session = authClient.useSession();
 
 	// Fetch data using separate promises
-	const filePromise = $derived(getFileContent(org!, repo!, path!, branch!));
-	const canEditPromise = $derived(getCanEdit(org!, repo!));
-	const getherConfigPromise = $derived(getGetherConfig(org!, repo!, branch!));
+	const filePromise = getFileContent(org!, repo!, path!, branch!);
+	const canEditPromise = getCanEdit(org!, repo!);
+	const getherConfigPromise = getGetherConfig(org!, repo!, branch!);
 
 	// Editor state - initialized when file loads
 	let fileData = $state<FileData | null>(null);
 	let content = $state("");
 	let originalContent = $state("");
-	let editorInitialized = $state(false);
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state("");
@@ -97,23 +96,13 @@
 		}
 	});
 
-	// Initialize editor when file data is loaded
-	$effect(() => {
-		filePromise.then((result) => {
-			if (result.fileData && !editorInitialized) {
-				editorInitialized = true;
-				fileData = result.fileData;
-				content = result.fileData.content;
-				originalContent = result.fileData.content;
-				lastValue = result.fileData.content;
-
-				// Connect WebSocket if logged in
-				if ($session.data) {
-					connect();
-				}
-			}
-		});
-	});
+	const result = await filePromise;
+	if (result.fileData) {
+		fileData = result.fileData;
+		content = result.fileData.content;
+		originalContent = result.fileData.content;
+		lastValue = result.fileData.content;
+	}
 
 	// Check sandbox status when config loads
 	$effect(() => {
