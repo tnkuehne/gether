@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getGitHubAppStatus, getRepositories } from "./dashboard.remote";
+	import { getGitHubAppStatus, getRepositories } from "./github";
 	import {
 		Card,
 		CardContent,
