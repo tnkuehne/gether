@@ -8,7 +8,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [x] Rendered Markdown Preview
 - [x] Live Content Preview
 - [x] Just use exisitng Github Auth
-- [ ] File navigation
+- [x] File navigation
 - [ ] (Automatic) Branching and Forking
 - [ ] Opening draft pull requests
 - [ ] Showing and writing comments on pull requests in UI
