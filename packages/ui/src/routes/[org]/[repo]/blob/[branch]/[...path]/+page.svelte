@@ -523,11 +523,6 @@
 					<span class="text-foreground">{path}</span>
 				</span>
 				<Separator orientation="vertical" class="h-4" />
-				<span>{(fileData.size / 1024).toFixed(2)} KB</span>
-				<Separator orientation="vertical" class="h-4" />
-				<code class="rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
-					>{fileData.sha.substring(0, 7)}</code
-				>
 				{#if $session.data && !canEdit}
 					<Separator orientation="vertical" class="h-4" />
 					<Badge variant="secondary">Read-only</Badge>
