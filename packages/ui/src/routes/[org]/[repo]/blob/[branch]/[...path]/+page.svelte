@@ -48,7 +48,6 @@
 	// Fetch data using separate promises
 	const filePromise = $derived(getFileContent(org!, repo!, path!, branch!));
 	const canEditPromise = $derived(getCanEdit(org!, repo!));
-	const hasGitHubAppPromise = $derived(getHasGitHubApp());
 	const getherConfigPromise = $derived(getGetherConfig(org!, repo!, branch!));
 
 	// Editor state - initialized when file loads
@@ -609,7 +608,7 @@
 				<CardContent>
 					<p class="text-destructive">{fileResult.error}</p>
 					{#if fileResult.needsGitHubApp}
-						{#await hasGitHubAppPromise then hasGitHubApp}
+						{#await getHasGitHubApp() then hasGitHubApp}
 							<div class="mt-4 space-y-2">
 								<p class="text-sm text-muted-foreground">
 									{#if hasGitHubApp}
