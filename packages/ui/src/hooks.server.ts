@@ -47,6 +47,7 @@ export async function handle({ event, resolve }) {
 }
 
 export const handleError = async ({ error, status }: HandleServerError) => {
+	console.error(error);
 	if (status !== 404) {
 		createPostHogClient().captureException(error);
 	}
