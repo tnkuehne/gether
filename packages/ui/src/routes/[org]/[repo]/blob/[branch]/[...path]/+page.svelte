@@ -34,6 +34,7 @@
 	);
 	let showPreview = $state(true);
 	let previewMode = $state<"markdown" | "live">("markdown");
+	let mobileView = $state<"code" | "preview">("code");
 
 	const session = authClient.useSession();
 
@@ -468,22 +469,24 @@
 	});
 </script>
 
-<div class="container mx-auto max-w-7xl px-4 py-8">
-	<header class="mb-8 space-y-4">
-		<div class="flex items-start justify-between">
-			<div>
-				<h1 class="mb-2 text-3xl font-bold tracking-tight">
+<div class="mx-auto w-full px-4 py-4 sm:py-6 lg:px-8 lg:py-8">
+	<header class="mb-4 space-y-3 sm:mb-6 lg:mb-8 lg:space-y-4">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+			<div class="min-w-0">
+				<h1 class="mb-1 truncate text-xl font-bold tracking-tight sm:mb-2 sm:text-2xl lg:text-3xl">
 					<a href="/{org}/{repo}" class="hover:underline">{org}/{repo}</a>
 				</h1>
 				{#if repoData?.description}
-					<p class="text-sm text-muted-foreground">{repoData.description}</p>
+					<p class="line-clamp-2 text-sm text-muted-foreground">{repoData.description}</p>
 				{/if}
 			</div>
 
-			<div class="flex items-center gap-2">
+			<div class="flex shrink-0 items-center gap-2">
 				{#if $session.data}
 					<div class="flex items-center gap-2">
-						<span class="text-sm text-muted-foreground">{$session.data.user.name}</span>
+						<span class="hidden text-sm text-muted-foreground sm:inline"
+							>{$session.data.user.name}</span
+						>
 						<Button
 							onclick={async () => {
 								await authClient.signOut();
@@ -512,22 +515,20 @@
 
 		{#if fileData}
 			<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-				<span class="font-mono">
+				<span class="min-w-0 font-mono">
 					<Badge
 						variant="secondary"
 						class="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-100"
 					>
 						{branch}
 					</Badge>
-					<span class="mx-2">/</span>
-					<span class="text-foreground">{path}</span>
+					<span class="mx-1 sm:mx-2">/</span>
+					<span class="break-all text-foreground">{path}</span>
 				</span>
-				<Separator orientation="vertical" class="h-4" />
+				<Separator orientation="vertical" class="hidden h-4 sm:block" />
 				{#if $session.data && !canEdit}
-					<Separator orientation="vertical" class="h-4" />
 					<Badge variant="secondary">Read-only</Badge>
 				{:else if !$session.data}
-					<Separator orientation="vertical" class="h-4" />
 					<button
 						onclick={async () => {
 							await authClient.signIn.social({
@@ -587,19 +588,46 @@
 			</CardContent>
 		</Card>
 	{:else if fileData && repoData}
-		<Card>
-			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-4">
-				<div class="flex items-center gap-3">
+		<Card class="-mx-4 border-x-0 sm:mx-0 sm:rounded-lg sm:border-x">
+			<CardHeader
+				class="flex flex-col gap-3 space-y-0 px-4 pb-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4"
+			>
+				<div class="flex min-w-0 items-center gap-3">
 					<a
 						href={fileData.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						class="font-mono text-sm font-medium hover:underline">{fileData.name}</a
+						class="truncate font-mono text-sm font-medium hover:underline">{fileData.name}</a
 					>
 				</div>
 
-				<div class="flex items-center gap-2">
+				<div class="flex flex-wrap items-center gap-x-2 gap-y-2">
 					{#if isMarkdown || sandboxStatus === "running"}
+						<!-- Mobile: toggle between code and preview -->
+						<div class="flex items-center rounded-md border sm:hidden">
+							<Button
+								onclick={() => {
+									mobileView = "code";
+								}}
+								variant={mobileView === "code" ? "secondary" : "ghost"}
+								size="sm"
+								class="rounded-r-none border-0"
+							>
+								Code
+							</Button>
+							<Separator orientation="vertical" class="h-6" />
+							<Button
+								onclick={() => {
+									mobileView = "preview";
+								}}
+								variant={mobileView === "preview" ? "secondary" : "ghost"}
+								size="sm"
+								class="rounded-l-none border-0"
+							>
+								Preview
+							</Button>
+						</div>
+						<!-- Desktop: show/hide preview pane -->
 						<Button
 							onclick={() => {
 								showPreview = !showPreview;
@@ -607,6 +635,7 @@
 							variant={showPreview ? "secondary" : "ghost"}
 							size="sm"
 							title={showPreview ? "Hide preview" : "Show preview"}
+							class="hidden sm:inline-flex"
 						>
 							{showPreview ? "Hide Preview" : "Show Preview"}
 						</Button>
@@ -726,8 +755,47 @@
 
 			<CardContent class="p-0">
 				{#if showPreview && (isMarkdown || sandboxStatus === "running")}
-					<ResizablePaneGroup direction="horizontal" class="min-h-125">
-						<ResizablePane defaultSize={50} minSize={30}>
+					<!-- Desktop: side-by-side resizable panes -->
+					<div class="hidden sm:block">
+						<ResizablePaneGroup direction="horizontal" class="min-h-125">
+							<ResizablePane defaultSize={50} minSize={30}>
+								<CodeMirror
+									bind:this={editorRef}
+									bind:value={content}
+									onchange={handleEditorChange}
+									oncursorchange={handleCursorChange}
+									remoteCursors={Array.from(remoteCursors.values())}
+									remoteSelections={Array.from(remoteSelections.values())}
+									readonly={!$session.data || !canEdit}
+								/>
+							</ResizablePane>
+							<ResizableHandle withHandle />
+							<ResizablePane defaultSize={50} minSize={30}>
+								{#if previewMode === "live" && sandboxStatus === "running" && previewUrl}
+									<iframe
+										src={previewUrl}
+										title="Live Preview"
+										class="h-full w-full border-0"
+										sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+									></iframe>
+								{:else if isMarkdown}
+									<div class="h-full overflow-auto bg-background p-6">
+										<Streamdown {content} baseTheme="shadcn" />
+									</div>
+								{:else if sandboxStatus === "running" && previewUrl}
+									<iframe
+										src={previewUrl}
+										title="Live Preview"
+										class="h-full w-full border-0"
+										sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+									></iframe>
+								{/if}
+							</ResizablePane>
+						</ResizablePaneGroup>
+					</div>
+					<!-- Mobile: toggle between code and preview -->
+					<div class="sm:hidden">
+						{#if mobileView === "code"}
 							<CodeMirror
 								bind:this={editorRef}
 								bind:value={content}
@@ -737,31 +805,26 @@
 								remoteSelections={Array.from(remoteSelections.values())}
 								readonly={!$session.data || !canEdit}
 							/>
-						</ResizablePane>
-						<ResizableHandle withHandle />
-						<ResizablePane defaultSize={50} minSize={30}>
-							{#if previewMode === "live" && sandboxStatus === "running" && previewUrl}
-								<iframe
-									src={previewUrl}
-									title="Live Preview"
-									class="h-full w-full border-0"
-									sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-								></iframe>
-							{:else if isMarkdown}
-								<div class="h-full overflow-auto bg-background p-6">
-									<Streamdown {content} baseTheme="shadcn" />
-								</div>
-							{:else if sandboxStatus === "running" && previewUrl}
-								<!-- Non-markdown file with live preview running -->
-								<iframe
-									src={previewUrl}
-									title="Live Preview"
-									class="h-full w-full border-0"
-									sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-								></iframe>
-							{/if}
-						</ResizablePane>
-					</ResizablePaneGroup>
+						{:else if previewMode === "live" && sandboxStatus === "running" && previewUrl}
+							<iframe
+								src={previewUrl}
+								title="Live Preview"
+								class="min-h-[50vh] w-full border-0"
+								sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+							></iframe>
+						{:else if isMarkdown}
+							<div class="min-h-[50vh] overflow-auto bg-background p-4">
+								<Streamdown {content} baseTheme="shadcn" />
+							</div>
+						{:else if sandboxStatus === "running" && previewUrl}
+							<iframe
+								src={previewUrl}
+								title="Live Preview"
+								class="min-h-[50vh] w-full border-0"
+								sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+							></iframe>
+						{/if}
+					</div>
 				{:else}
 					<CodeMirror
 						bind:this={editorRef}
