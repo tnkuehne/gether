@@ -588,7 +588,7 @@
 			</CardContent>
 		</Card>
 	{:else if fileData && repoData}
-		<Card class="-mx-4 border-x-0 sm:mx-0 sm:rounded-lg sm:border-x">
+		<Card class="-mx-4 gap-0 border-x-0 sm:mx-0 sm:rounded-lg sm:border-x">
 			<CardHeader
 				class="flex flex-col gap-3 space-y-0 px-4 pb-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4"
 			>
