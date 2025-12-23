@@ -2,6 +2,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import githubMark from "$lib/assets/github-mark.svg";
 	import githubMarkWhite from "$lib/assets/github-mark-white.svg";
+	import { authClient } from "$lib/auth-client";
 </script>
 
 <svelte:head>
@@ -49,9 +50,23 @@
 				</div>
 			</div>
 
-			<Button href="https://gether.md/tnkuehne/gether/blob/main/README.md" size="lg">
-				Try it on a GitHub Markdown file
-			</Button>
+			<div class="mx-auto flex w-fit flex-col items-center gap-2">
+				<Button href="https://gether.md/tnkuehne/gether/blob/main/README.md" size="lg">
+					Try it on a GitHub Markdown file
+				</Button>
+				<Button
+					onclick={async () => {
+						await authClient.signIn.social({
+							provider: "github",
+							callbackURL: "/dashboard",
+						});
+					}}
+					size="sm"
+					variant="outline"
+				>
+					Sign in with GitHub
+				</Button>
+			</div>
 		</section>
 
 		<!-- How it works -->
