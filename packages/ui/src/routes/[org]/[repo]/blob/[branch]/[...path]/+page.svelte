@@ -473,7 +473,7 @@
 		<div class="flex items-start justify-between">
 			<div>
 				<h1 class="mb-2 text-3xl font-bold tracking-tight">
-					{org}/{repo}
+					<a href="/{org}/{repo}" class="hover:underline">{org}/{repo}</a>
 				</h1>
 				{#if repoData?.description}
 					<p class="text-sm text-muted-foreground">{repoData.description}</p>
