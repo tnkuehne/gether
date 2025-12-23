@@ -28,10 +28,10 @@
 	}
 </script>
 
-<div class="container mx-auto py-8">
+<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
 	{#await getGitHubAppStatus()}
 		<div class="mb-6 flex items-center justify-between">
-			<h1 class="text-3xl font-bold">Your Repositories</h1>
+			<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
 			<Skeleton class="h-9 w-36" />
 		</div>
 		<div class="space-y-3">
@@ -44,10 +44,10 @@
 		</div>
 	{:then status}
 		{#if status.isInstalled}
-			<div class="mb-6 flex items-center justify-between">
-				<h1 class="text-3xl font-bold">Your Repositories</h1>
+			<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
 				{#if status.installUrl}
-					<Button variant="outline" onclick={handleGitHubAppClick}>
+					<Button variant="outline" class="w-full sm:w-auto" onclick={handleGitHubAppClick}>
 						<Plus class="size-4" />
 						Add Repositories
 					</Button>
@@ -99,10 +99,10 @@
 			{/await}
 		{:else}
 			<div class="mb-6 flex items-center justify-between">
-				<h1 class="text-3xl font-bold">Your Repositories</h1>
+				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
 			</div>
 
-			<div class="flex flex-col items-center justify-center py-24">
+			<div class="flex flex-col items-center justify-center py-12 sm:py-24">
 				<div class="flex max-w-md flex-col items-center gap-6 text-center">
 					<div class="rounded-full bg-muted p-6">
 						<Github class="size-12 text-muted-foreground" />
@@ -125,7 +125,7 @@
 		{/if}
 	{:catch error}
 		<div class="mb-6 flex items-center justify-between">
-			<h1 class="text-3xl font-bold">Your Repositories</h1>
+			<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
 		</div>
 		<Alert variant="destructive">
 			<CircleAlert class="size-4" />
