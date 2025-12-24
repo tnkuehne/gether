@@ -14,6 +14,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [ ] Showing and writing comments on pull requests in UI
 - [ ] Media upload
 - [ ] Collections for easier content navigation
+- [ ] UI for frontmatter
 
 ## Live Preview
 
