@@ -43,17 +43,19 @@ export const startPreview = command(sandboxParams, async ({ org, repo, branch, c
 
 	// Check feature flag for live preview
 	const posthog = createPostHogClient();
-	const isLivePreviewEnabled = await posthog.isFeatureEnabled(
-		"live-preview",
-		event.locals.user.email,
-	);
+	if (posthog) {
+		const isLivePreviewEnabled = await posthog.isFeatureEnabled(
+			"live-preview",
+			event.locals.user.email,
+		);
 
-	if (!isLivePreviewEnabled) {
-		return {
-			success: false as const,
-			error: "Live preview is not enabled for your account",
-			details: "This feature is currently in beta.",
-		};
+		if (!isLivePreviewEnabled) {
+			return {
+				success: false as const,
+				error: "Live preview is not enabled for your account",
+				details: "This feature is currently in beta.",
+			};
+		}
 	}
 
 	// Get GitHub access token for cloning private repos
