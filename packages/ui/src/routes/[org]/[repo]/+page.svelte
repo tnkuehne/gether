@@ -28,6 +28,7 @@
 
 	let dialogOpen = $state(false);
 	let filePath = $state("");
+	let baseDir = $state("");
 	let isCreating = $state(false);
 	let createError = $state<string | null>(null);
 	let selectedBranch = $state<string | undefined>(undefined);
@@ -64,10 +65,17 @@
 		}
 	}
 
+	function openCreateDialog(dir: string = "") {
+		baseDir = dir;
+		filePath = "";
+		createError = null;
+		dialogOpen = true;
+	}
+
 	async function handleCreateFile() {
 		if (!filePath.trim() || !selectedBranch) return;
 
-		let finalPath = filePath.trim();
+		let finalPath = baseDir ? `${baseDir}/${filePath.trim()}` : filePath.trim();
 		if (!finalPath.match(/\.(md|mdx|svx)$/i)) {
 			finalPath += ".md";
 		}
@@ -87,6 +95,7 @@
 
 			dialogOpen = false;
 			filePath = "";
+			baseDir = "";
 
 			// Refresh files list
 			files = await getRepoFiles(page.params.org, page.params.repo, selectedBranch);
@@ -237,15 +246,11 @@
 						</Popover.Content>
 					</Popover.Root>
 				{/await}
+				<Button size="sm" class="w-full sm:w-auto" onclick={() => openCreateDialog()}>
+					<Plus class="mr-2 size-4" />
+					Add file
+				</Button>
 				<Dialog.Root bind:open={dialogOpen}>
-					<Dialog.Trigger>
-						{#snippet child({ props })}
-							<Button {...props} size="sm" class="w-full sm:w-auto">
-								<Plus class="mr-2 size-4" />
-								Add file
-							</Button>
-						{/snippet}
-					</Dialog.Trigger>
 					<Dialog.Content>
 						<Dialog.Header>
 							<Dialog.Title>Create new file</Dialog.Title>
@@ -255,13 +260,26 @@
 						</Dialog.Header>
 						<div class="grid gap-4 py-4">
 							<div class="grid gap-2">
-								<Label for="file-path">File path</Label>
-								<Input
-									id="file-path"
-									placeholder="docs/example.md"
-									bind:value={filePath}
-									onkeydown={(e) => e.key === "Enter" && handleCreateFile()}
-								/>
+								<Label for="file-path">File name</Label>
+								{#if baseDir}
+									<div class="flex items-center gap-1">
+										<span class="text-sm text-muted-foreground">{baseDir}/</span>
+										<Input
+											id="file-path"
+											placeholder="example.md"
+											class="flex-1"
+											bind:value={filePath}
+											onkeydown={(e) => e.key === "Enter" && handleCreateFile()}
+										/>
+									</div>
+								{:else}
+									<Input
+										id="file-path"
+										placeholder="docs/example.md"
+										bind:value={filePath}
+										onkeydown={(e) => e.key === "Enter" && handleCreateFile()}
+									/>
+								{/if}
 								<p class="text-sm text-muted-foreground">Supports .md, .mdx, and .svx extensions</p>
 							</div>
 							{#if createError}
@@ -310,11 +328,18 @@
 							{@const depth = item.path.split("/").length - 1}
 							{#if item.type === "dir"}
 								<div
-									class="flex items-center gap-2 py-1.5 text-muted-foreground"
+									class="group flex items-center gap-2 py-1.5 text-muted-foreground"
 									style="padding-left: {depth * 1.25}rem"
 								>
 									<Folder class="size-4" />
 									<span class="text-sm font-medium">{item.name}</span>
+									<button
+										class="rounded p-1 opacity-100 transition-opacity hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100"
+										onclick={() => openCreateDialog(item.path)}
+										title="Create file in {item.path}"
+									>
+										<Plus class="size-3" />
+									</button>
 								</div>
 							{:else}
 								<a
