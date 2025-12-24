@@ -34,7 +34,6 @@
 	let selectedBranch = $state<string | undefined>(undefined);
 	let files = $state<Awaited<ReturnType<typeof getRepoFiles>>>([]);
 	let isLoadingFiles = $state(false);
-	let branches = $state<string[]>([]);
 
 	// Branch creation state
 	let branchPopoverOpen = $state(false);
@@ -43,15 +42,13 @@
 	let createBranchError = $state<string | null>(null);
 	let showNewBranchInput = $state(false);
 
-	const initialDataPromise = Promise.all([
-		getDefaultBranch(page.params.org, page.params.repo),
-		getBranches(page.params.org, page.params.repo),
-	]).then(async ([defaultBranch, fetchedBranches]) => {
-		selectedBranch = defaultBranch;
-		branches = fetchedBranches;
-		files = await getRepoFiles(page.params.org, page.params.repo, defaultBranch);
-		return { defaultBranch };
-	});
+	// Files depend on default branch
+	const filesPromise = getDefaultBranch(page.params.org, page.params.repo).then(
+		async (defaultBranch) => {
+			selectedBranch = defaultBranch;
+			files = await getRepoFiles(page.params.org, page.params.repo, defaultBranch);
+		},
+	);
 
 	async function handleBranchChange(branch: string) {
 		if (branch === selectedBranch) return;
@@ -123,7 +120,6 @@
 			);
 
 			// Add to branches list and select it
-			branches = [...branches, branchName].sort();
 			selectedBranch = branchName;
 
 			// Load files for the new branch
@@ -153,7 +149,12 @@
 				<CardDescription>Select a file to view</CardDescription>
 			</div>
 			<div class="flex flex-row gap-2 sm:items-center">
-				{#await initialDataPromise then}
+				{#await getBranches(page.params.org, page.params.repo)}
+					<Button variant="outline" size="sm" disabled class="sm:w-[180px]">
+						<GitBranch class="mr-2 size-4" />
+						<Skeleton class="h-4 w-16" />
+					</Button>
+				{:then branches}
 					<Popover.Root bind:open={branchPopoverOpen}>
 						<Popover.Trigger>
 							{#snippet child({ props })}
@@ -301,7 +302,7 @@
 			</div>
 		</CardHeader>
 		<CardContent>
-			{#await initialDataPromise}
+			{#await filesPromise}
 				<div class="space-y-2">
 					{#each Array.from({ length: 4 }, (_, i) => i) as i (i)}
 						<div class="flex items-center gap-3">
