@@ -152,7 +152,7 @@
 				<CardTitle>Files</CardTitle>
 				<CardDescription>Select a file to view</CardDescription>
 			</div>
-			<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+			<div class="flex flex-row gap-2 sm:items-center">
 				{#await initialDataPromise then}
 					<Popover.Root bind:open={branchPopoverOpen}>
 						<Popover.Trigger>
@@ -161,7 +161,7 @@
 									{...props}
 									variant="outline"
 									size="sm"
-									class="w-full justify-between sm:w-[180px]"
+									class="flex-1 justify-between sm:w-[180px] sm:flex-none"
 								>
 									<span class="flex items-center">
 										<GitBranch class="mr-2 size-4" />
@@ -246,7 +246,7 @@
 						</Popover.Content>
 					</Popover.Root>
 				{/await}
-				<Button size="sm" class="w-full sm:w-auto" onclick={() => openCreateDialog()}>
+				<Button size="sm" onclick={() => openCreateDialog()}>
 					<Plus class="mr-2 size-4" />
 					Add file
 				</Button>
