@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://gether.md/favicon.svg" alt="Gether" width="64" height="64" />
+</p>
+
 # Gether
 
 A collaborative content editor for markdown or static site generators without lock-in

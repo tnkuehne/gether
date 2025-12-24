@@ -2,6 +2,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import githubMark from "$lib/assets/github-mark.svg";
 	import githubMarkWhite from "$lib/assets/github-mark-white.svg";
+	import logo from "$lib/assets/logo.svg";
 	import { authClient } from "$lib/auth-client";
 </script>
 
@@ -31,6 +32,7 @@
 	<main class="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
 		<!-- Hero Section -->
 		<section class="mb-16 text-center">
+			<img src={logo} alt="Gether" class="mx-auto mb-8 h-16 w-16 dark:invert" />
 			<h1 class="mb-4 text-2xl font-semibold text-foreground sm:text-3xl">
 				Edit GitHub Markdown files collaboratively — in real time.
 			</h1>
