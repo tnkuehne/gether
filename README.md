@@ -25,6 +25,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [ ] Collections for easier content navigation
 - [ ] UI for frontmatter
 - [ ] Offline Support
+- [ ] MDX component insertion
 
 ## Live Preview
 
