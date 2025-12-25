@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="https://gether.md/favicon.svg" alt="Gether" width="64" height="64" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="packages/ui/static/favicon.svg">
+    <img src="packages/ui/static/favicon.svg" alt="Gether" width="64" height="64">
+</picture>
 </p>
 
 # Gether
