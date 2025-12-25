@@ -78,10 +78,10 @@
 </script>
 
 <svelte:head>
-	<title>Gether - Collaborative GitHub Markdown Editing</title>
+	<title>Gether - Collaborative Content Editor for Git</title>
 	<meta
 		name="description"
-		content="Edit GitHub Markdown files collaboratively in real time. Replace github.com with gether.md and start editing together."
+		content="A collaborative content editor for markdown and static site generators. Edit together in real time with live preview."
 	/>
 </svelte:head>
 
@@ -105,7 +105,7 @@
 		<section class="mb-16 text-center">
 			<img src={logo} alt="Gether" class="mx-auto mb-8 h-16 w-16 dark:invert" />
 			<h1 class="mb-4 text-2xl font-semibold text-foreground sm:text-3xl">
-				Edit GitHub Markdown files collaboratively{timoText}{#if showTimoCursor}<CollaborativeCursor
+				A collaborative content editor for Git{timoText}{#if showTimoCursor}<CollaborativeCursor
 						name="Timo"
 						color="#3b82f6"
 					/>{/if}
@@ -148,6 +148,33 @@
 			</div>
 		</section>
 
+		<!-- Features -->
+		<section class="mb-16">
+			<h2 class="mb-6 text-lg font-medium text-foreground">Features</h2>
+			<ul class="space-y-3 text-muted-foreground">
+				<li class="flex gap-3">
+					<span class="text-foreground">•</span>
+					<span>Real-time collaboration with live cursors</span>
+				</li>
+				<li class="flex gap-3">
+					<span class="text-foreground">•</span>
+					<span>Rendered markdown preview</span>
+				</li>
+				<li class="flex gap-3">
+					<span class="text-foreground">•</span>
+					<span>Live site preview for static site generators</span>
+				</li>
+				<li class="flex gap-3">
+					<span class="text-foreground">•</span>
+					<span>File navigation within repositories</span>
+				</li>
+				<li class="flex gap-3">
+					<span class="text-foreground">•</span>
+					<span>Commit directly back to GitHub</span>
+				</li>
+			</ul>
+		</section>
+
 		<!-- How it works -->
 		<section class="mb-16">
 			<h2 class="mb-6 text-lg font-medium text-foreground">How it works</h2>
@@ -157,7 +184,7 @@
 						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
 						>1</span
 					>
-					<span>Open a Markdown file on GitHub</span>
+					<span>Open markdown/mdx file on GitHub</span>
 				</li>
 				<li class="flex gap-4">
 					<span
@@ -174,7 +201,7 @@
 						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
 						>3</span
 					>
-					<span>Edit together and commit back to GitHub</span>
+					<span>Edit together with live preview</span>
 				</li>
 			</ol>
 		</section>
