@@ -129,10 +129,7 @@
 				</div>
 			</div>
 
-			<div class="mx-auto flex w-fit flex-col items-center gap-2">
-				<Button href="https://gether.md/tnkuehne/gether/blob/main/README.md" size="lg">
-					Try it on a GitHub Markdown file
-				</Button>
+			<div class="mx-auto flex w-fit flex-col items-center gap-4 sm:flex-row">
 				<Button
 					onclick={async () => {
 						await authClient.signIn.social({
@@ -140,10 +137,16 @@
 							callbackURL: "/dashboard",
 						});
 					}}
-					size="sm"
-					variant="outline"
+					size="lg"
 				>
 					Sign in with GitHub
+				</Button>
+				<Button
+					href="https://gether.md/tnkuehne/gether/blob/main/README.md"
+					size="lg"
+					variant="outline"
+				>
+					See it in action
 				</Button>
 			</div>
 		</section>
