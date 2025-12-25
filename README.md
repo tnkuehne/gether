@@ -17,6 +17,8 @@ A collaborative content editor for markdown or static site generators without lo
 - [x] Live Content Preview (Cloudflare Sandboxes)
 - [x] Just use existing GitHub Auth
 - [x] File navigation
+
+## Roadmap
 - [ ] wysiwyg editor
 - [ ] (Automatic) Branching and Forking
 - [ ] Opening draft pull requests
