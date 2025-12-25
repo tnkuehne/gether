@@ -19,6 +19,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [ ] Media upload
 - [ ] Collections for easier content navigation
 - [ ] UI for frontmatter
+- [ ] Offline Support
 
 ## Live Preview
 
@@ -59,3 +60,20 @@ Heavily inspired by
 
 - Lee Robinson article about [Coding Agents & Complexity Budgets](https://leerob.com/agents)
 - Knut Melvær's answer to Lee Robinsons [“You should never build a CMS”](https://www.sanity.io/blog/you-should-never-build-a-cms)
+d>
+```
+
+Run commands in a specific package:
+
+```bash
+pnpm --filter @gether/package-name <command>
+```
+
+## Technologies
+
+- **PNPM Workspaces**: Monorepo management
+- **SvelteKit**: UI framework
+- **Cloudflare Workers**: Serverless platform
+- **TypeScript**: Type safety
+- **Tailwind CSS**: Styling
+- **Wrangler**: Cloudflare development and deployment
