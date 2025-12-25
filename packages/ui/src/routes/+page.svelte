@@ -4,6 +4,77 @@
 	import githubMarkWhite from "$lib/assets/github-mark-white.svg";
 	import logo from "$lib/assets/logo.svg";
 	import { authClient } from "$lib/auth-client";
+	import { onMount } from "svelte";
+	import CollaborativeCursor from "$lib/components/collaborative-cursor.svelte";
+
+	// Animation state
+	let timoText = $state("");
+	let maxText = $state("");
+	let showTimoCursor = $state(false);
+	let showMaxCursor = $state(false);
+	let animationComplete = $state(false);
+	let hasAnimated = $state(false);
+
+	const timoPhrase = " — in real time.";
+	const maxPhrase = " together";
+
+	function sleep(ms: number) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	async function typeText(
+		phrase: string,
+		setText: (val: string) => void,
+		minDelay = 60,
+		maxDelay = 120,
+	) {
+		for (let i = 0; i <= phrase.length; i++) {
+			setText(phrase.slice(0, i));
+			await sleep(minDelay + Math.random() * (maxDelay - minDelay));
+		}
+	}
+
+	async function animate() {
+		if (hasAnimated) return;
+		hasAnimated = true;
+
+		await sleep(400);
+
+		// Timo starts typing
+		showTimoCursor = true;
+		await sleep(300);
+		await typeText(timoPhrase, (val) => (timoText = val));
+		await sleep(200);
+		showTimoCursor = false;
+
+		// Small pause, then Max types
+		await sleep(400);
+		showMaxCursor = true;
+		await sleep(300);
+		await typeText(maxPhrase, (val) => (maxText = val), 70, 130);
+		await sleep(200);
+		showMaxCursor = false;
+
+		animationComplete = true;
+	}
+
+	onMount(() => {
+		function tryAnimate() {
+			if (document.visibilityState === "visible" && !hasAnimated) {
+				animate();
+			}
+		}
+
+		// Start animation when page becomes visible
+		document.addEventListener("visibilitychange", tryAnimate);
+
+		// Also try immediately in case page is already visible
+		tryAnimate();
+
+		return () => {
+			document.removeEventListener("visibilitychange", tryAnimate);
+		};
+	});
 </script>
 
 <svelte:head>
@@ -34,11 +105,17 @@
 		<section class="mb-16 text-center">
 			<img src={logo} alt="Gether" class="mx-auto mb-8 h-16 w-16 dark:invert" />
 			<h1 class="mb-4 text-2xl font-semibold text-foreground sm:text-3xl">
-				Edit GitHub Markdown files collaboratively — in real time.
+				Edit GitHub Markdown files collaboratively{timoText}{#if showTimoCursor}<CollaborativeCursor
+						name="Timo"
+						color="#3b82f6"
+					/>{/if}
 			</h1>
 			<p class="mb-8 text-muted-foreground">
 				Replace <code class="rounded bg-muted px-1.5 py-0.5 text-sm">github.com</code> with
-				<code class="rounded bg-muted px-1.5 py-0.5 text-sm">gether.md</code> and start editing together.
+				<code class="rounded bg-muted px-1.5 py-0.5 text-sm">gether.md</code> and start editing{maxText}{#if showMaxCursor}<CollaborativeCursor
+						name="Max"
+						color="#10b981"
+					/>{/if}{#if !showMaxCursor && animationComplete}.{/if}
 			</p>
 
 			<!-- URL Example -->
