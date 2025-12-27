@@ -19,6 +19,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [x] File navigation
 
 ## Roadmap
+
 - [ ] wysiwyg editor
 - [ ] (Automatic) Branching and Forking
 - [ ] Opening draft pull requests
@@ -26,7 +27,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [ ] Media upload
 - [ ] Collections for easier content navigation
 - [ ] UI for frontmatter
-- [ ] Offline Support
+- [ ] Offline Support via CRDTs
 - [ ] MDX component insertion
 
 ## Live Preview
