@@ -3,12 +3,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-	plugins: [
-		svelte({
-			// Hot module replacement breaks tests
-			hot: false,
-		}),
-	],
+	plugins: [svelte()],
 	test: {
 		include: ["src/**/*.{test,spec}.{js,ts,svelte}"],
 		browser: {
@@ -16,11 +11,6 @@ export default defineConfig({
 			provider: playwright(),
 			headless: true,
 			instances: [{ browser: "chromium" }],
-		},
-	},
-	resolve: {
-		alias: {
-			$lib: "/src/lib",
 		},
 	},
 });
