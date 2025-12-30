@@ -637,16 +637,6 @@
 				<CardHeader
 					class="flex flex-col gap-3 space-y-0 px-4 pb-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4"
 				>
-					<div class="flex min-w-0 items-center gap-3">
-						<a
-							href={fileResult.fileData.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="truncate font-mono text-sm font-medium hover:underline"
-							>{fileResult.fileData.name}</a
-						>
-					</div>
-
 					<div class="flex flex-wrap items-center gap-x-2 gap-y-2">
 						{#if isMarkdown || sandboxStatus === "running"}
 							<!-- Mobile: toggle between code and preview -->
@@ -776,18 +766,17 @@
 								{:else if sandboxStatus === "starting"}
 									<Button disabled variant="outline" size="sm">Starting sandbox...</Button>
 								{:else if sandboxStatus === "running" && previewUrl}
-									{#if isSyncing}
+									{#if isSyncing && !isMarkdown}
 										<span class="text-xs text-muted-foreground">Syncing...</span>
 									{/if}
-									<Badge variant="outline" class="text-green-600">Live</Badge>
 									<a
 										href={previewUrl}
 										target="_blank"
 										rel="noopener noreferrer"
 										class={buttonVariants({ variant: "ghost", size: "sm" })}
-										title="Open in new tab"
+										title="Open live preview in new tab"
 									>
-										Open in tab
+										Open Preview
 									</a>
 								{:else if sandboxStatus === "error"}
 									<Button
