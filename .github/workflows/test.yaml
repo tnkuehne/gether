@@ -22,7 +22,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npx playwright install chromium
+        run: pnpm --filter @gether/ui exec playwright install chromium
 
       - name: Run browser tests
         run: pnpm --filter @gether/ui test:browser
