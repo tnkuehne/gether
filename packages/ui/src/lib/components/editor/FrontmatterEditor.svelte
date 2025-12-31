@@ -173,7 +173,7 @@
 								</Badge>
 							</div>
 
-							<div class="flex-1">
+							<div class="min-w-0 flex-1">
 								{#if readonly}
 									<div class="rounded-md bg-muted/50 px-3 py-1.5 text-sm">
 										{#if field.type === "array"}
@@ -223,7 +223,7 @@
 											const target = e.target as HTMLInputElement;
 											handleFieldChange(index, target.value);
 										}}
-										class="h-8 w-full text-sm"
+										class="h-8 min-w-0 text-sm"
 									/>
 								{:else if field.type === "number"}
 									<Input
