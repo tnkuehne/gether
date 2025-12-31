@@ -1,16 +1,24 @@
 packages:
-  - 'packages/*'
+  - packages/*
 
-onlyBuiltDependencies:
-  - esbuild
-minimumReleaseAge: 1440 # 1 day
+minimumReleaseAge: 1440
+
 minimumReleaseAgeExclude:
   - '@rollup/*'
   - better-auth@1.4.8-beta.1
   - '@better-auth/*'
-verifyDepsBeforeRun: install
+
+onlyBuiltDependencies:
+  - esbuild
+
+patchedDependencies:
+  axios-proxy-builder@0.1.2: patches/axios-proxy-builder@0.1.2.patch
+
 trustPolicy: no-downgrade
+
 trustPolicyExclude:
   - chokidar@4.0.3
   - undici@5.29.0
   - langium@3.3.1
+
+verifyDepsBeforeRun: install

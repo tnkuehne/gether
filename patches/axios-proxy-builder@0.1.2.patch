@@ -1,0 +1,24 @@
+diff --git a/dist/proxy-builder.js b/dist/proxy-builder.js
+index d97dd951ca52abf06b12075e80f4b10273b1a65b..9edef1a7a9d3f949461a551568046e9b4b26ebb7 100644
+--- a/dist/proxy-builder.js
++++ b/dist/proxy-builder.js
+@@ -13,11 +13,15 @@ const configureProxy = (requestURL) => {
+     const { hostname, port, protocol, username, password } = new URL(proxyUrl);
+     // axios proxy implementation for https over http doesn't work. hence, this implementation
+     if (requestURLObject.protocol === "https:" && protocol === "http:") {
++        const proxyConfig = {
++            host: hostname,
++            port: parseInt(port),
++        };
++        if (username && password) {
++            proxyConfig.proxyAuth = `${username}:${password}`;
++        }
+         const agent = (0, tunnel_1.httpsOverHttp)({
+-            proxy: {
+-                host: hostname,
+-                port: parseInt(port),
+-            },
++            proxy: proxyConfig,
+         });
+         return {
+             proxy: false,
