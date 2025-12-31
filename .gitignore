@@ -22,5 +22,8 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Test artifacts
+__screenshots__
+
 .dev.vars*
 !.dev.vars.example
