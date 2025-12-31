@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from "$app/state";
-	import { goto } from "$app/navigation";
 	import { Card, CardContent, CardHeader } from "$lib/components/ui/card";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button, buttonVariants } from "$lib/components/ui/button";
@@ -489,8 +488,8 @@
 	// Contribution workflow handlers
 	async function handleCreateBranch(branchName: string) {
 		await doCreateBranch(currentOrg, currentRepo, branchName, currentBranch);
-		// Navigate to the new branch (encode branch name to handle slashes)
-		goto(`/${currentOrg}/${currentRepo}/blob/${encodeURIComponent(branchName)}/${path}`);
+		// Navigate to the new branch (full reload to refresh all data)
+		window.location.href = `/${currentOrg}/${currentRepo}/blob/${encodeURIComponent(branchName)}/${path}`;
 	}
 
 	async function handleFork(): Promise<ForkInfo> {
