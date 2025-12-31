@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from "$app/state";
+	import { goto } from "$app/navigation";
 	import { Card, CardContent, CardHeader } from "$lib/components/ui/card";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button, buttonVariants } from "$lib/components/ui/button";
@@ -12,6 +13,7 @@
 	import { SvelteMap } from "svelte/reactivity";
 	import CodeMirror from "$lib/components/editor/CodeMirror.svelte";
 	import FrontmatterEditor from "$lib/components/editor/FrontmatterEditor.svelte";
+	import ContributionBanner from "$lib/components/contribution/ContributionBanner.svelte";
 	import { Octokit } from "octokit";
 	import { authClient } from "$lib/auth-client";
 	import { commitFile } from "$lib/github-app";
@@ -25,7 +27,17 @@
 		getCanEdit,
 		getHasGitHubApp,
 		getGetherConfig,
+		getIsBranchProtected,
+		getRepoDefaultBranch,
+		getCurrentUser,
+		checkUserFork,
+		checkExistingPR,
+		doForkRepository,
+		doCreateBranch,
+		doCreatePullRequest,
 		type FileData,
+		type ForkInfo,
+		type PullRequestInfo,
 	} from "./github";
 	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
 
@@ -50,6 +62,24 @@
 	const filePromise = getFileContent(org!, repo!, path!, branch!);
 	const canEditPromise = getCanEdit(org!, repo!);
 	const getherConfigPromise = getGetherConfig(org!, repo!, branch!);
+
+	// Contribution workflow data promises
+	const branchProtectedPromise = getIsBranchProtected(org!, repo!, branch!);
+	const defaultBranchPromise = getRepoDefaultBranch(org!, repo!);
+	const currentUserPromise = getCurrentUser();
+	const existingForkPromise = checkUserFork(org!, repo!);
+
+	// Contribution workflow state
+	let currentOrg = $state(org!);
+	let currentRepo = $state(repo!);
+	let currentBranch = $state(branch!);
+	let canEdit = $state(false);
+	let isProtected = $state(false);
+	let defaultBranch = $state<string | null>(null);
+	let currentUser = $state<string | null>(null);
+	let existingFork = $state<ForkInfo | null>(null);
+	let existingPR = $state<PullRequestInfo | null>(null);
+	let justCommitted = $state(false);
 
 	// Editor state - initialized when file loads
 	let fileData = $state<FileData | null>(null);
@@ -119,6 +149,31 @@
 		// Set editor content based on whether frontmatter exists
 		editorContent = parsed.hasFrontmatter ? parsed.content : result.fileData.content;
 	}
+
+	// Initialize contribution workflow state
+	$effect(() => {
+		if ($session.data) {
+			Promise.all([
+				canEditPromise,
+				branchProtectedPromise,
+				defaultBranchPromise,
+				currentUserPromise,
+				existingForkPromise,
+			]).then(async ([canEditResult, isProtectedResult, defaultBranchResult, userResult, forkResult]) => {
+				canEdit = canEditResult;
+				isProtected = isProtectedResult;
+				defaultBranch = defaultBranchResult;
+				currentUser = userResult;
+				existingFork = forkResult;
+
+				// Check for existing PR if we're not on default branch
+				if (defaultBranchResult && currentBranch !== defaultBranchResult) {
+					const pr = await checkExistingPR(currentOrg, currentRepo, currentBranch, userResult ?? undefined);
+					existingPR = pr;
+				}
+			});
+		}
+	});
 
 	// Check sandbox status when config loads
 	$effect(() => {
@@ -424,6 +479,39 @@
 		}
 	}
 
+	// Contribution workflow handlers
+	async function handleCreateBranch(branchName: string) {
+		await doCreateBranch(currentOrg, currentRepo, branchName, currentBranch);
+		// Navigate to the new branch
+		goto(`/${currentOrg}/${currentRepo}/blob/${branchName}/${path}`);
+	}
+
+	async function handleFork(): Promise<ForkInfo> {
+		const fork = await doForkRepository(org!, repo!);
+		existingFork = fork;
+		return fork;
+	}
+
+	async function handleCreatePR(params: { title: string; body: string; draft: boolean }): Promise<PullRequestInfo> {
+		if (!defaultBranch) throw new Error("Default branch not found");
+
+		// For cross-repo PRs (forks), we need to include the owner
+		const isFromFork = currentOrg !== org;
+		const head = isFromFork ? `${currentOrg}:${currentBranch}` : currentBranch;
+
+		const pr = await doCreatePullRequest(org!, repo!, {
+			title: params.title,
+			body: params.body || undefined,
+			head,
+			base: defaultBranch,
+			draft: params.draft,
+		});
+
+		existingPR = pr;
+		justCommitted = false;
+		return pr;
+	}
+
 	async function handleCommit() {
 		let accessToken;
 
@@ -446,10 +534,10 @@
 			const octokit = new Octokit({ auth: accessToken });
 			const result = await commitFile(
 				octokit,
-				org!,
-				repo!,
+				currentOrg,
+				currentRepo,
 				path!,
-				branch!,
+				currentBranch,
 				content,
 				commitMessage.trim(),
 				fileData.sha,
@@ -460,6 +548,11 @@
 			originalContent = content;
 			commitMessage = "";
 			commitDialogOpen = false;
+
+			// Track that we just committed for PR prompt
+			if (defaultBranch && currentBranch !== defaultBranch && !existingPR) {
+				justCommitted = true;
+			}
 		} catch (err: unknown) {
 			const error = err as { status?: number; message?: string };
 			if (error.status === 409) {
@@ -618,6 +711,28 @@
 			{/if}
 		{/await}
 	</header>
+
+	<!-- Contribution workflow banners -->
+	{#if $session.data}
+		<div class="mb-4 space-y-2">
+			<ContributionBanner
+				org={org!}
+				repo={repo!}
+				branch={currentBranch}
+				path={path!}
+				{canEdit}
+				{isProtected}
+				{defaultBranch}
+				{existingFork}
+				{existingPR}
+				{currentUser}
+				{justCommitted}
+				onCreateBranch={handleCreateBranch}
+				onFork={handleFork}
+				onCreatePR={handleCreatePR}
+			/>
+		</div>
+	{/if}
 
 	{#await filePromise}
 		<!-- Loading skeleton for the main card -->

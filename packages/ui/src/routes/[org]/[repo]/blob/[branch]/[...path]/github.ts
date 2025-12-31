@@ -5,6 +5,16 @@ import {
 	checkWritePermission,
 	hasGitHubAppInstalled,
 	fetchGetherConfig,
+	checkBranchProtection,
+	getDefaultBranch,
+	forkRepository,
+	getUserFork,
+	createPullRequest,
+	getExistingPullRequest,
+	getAuthenticatedUser,
+	createBranch,
+	type ForkInfo,
+	type PullRequestInfo,
 } from "$lib/github-app";
 
 async function getOctokit(): Promise<{ octokit: Octokit; accessToken: string } | null> {
@@ -120,3 +130,129 @@ export async function getGetherConfig(
 		return null;
 	}
 }
+
+/**
+ * Check if a branch is protected
+ */
+export async function getIsBranchProtected(
+	org: string,
+	repo: string,
+	branch: string,
+): Promise<boolean> {
+	const auth = await getOctokit();
+	if (!auth) return false;
+
+	try {
+		return await checkBranchProtection(auth.octokit, org, repo, branch);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Get the default branch for a repository
+ */
+export async function getRepoDefaultBranch(org: string, repo: string): Promise<string | null> {
+	const auth = await getOctokit();
+	const octokit = auth?.octokit ?? getPublicOctokit();
+
+	try {
+		return await getDefaultBranch(octokit, org, repo);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Get the authenticated user's login
+ */
+export async function getCurrentUser(): Promise<string | null> {
+	const auth = await getOctokit();
+	if (!auth) return null;
+
+	try {
+		return await getAuthenticatedUser(auth.octokit);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Check if user has an existing fork
+ */
+export async function checkUserFork(org: string, repo: string): Promise<ForkInfo | null> {
+	const auth = await getOctokit();
+	if (!auth) return null;
+
+	try {
+		return await getUserFork(auth.octokit, org, repo);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Fork a repository
+ */
+export async function doForkRepository(org: string, repo: string): Promise<ForkInfo> {
+	const auth = await getOctokit();
+	if (!auth) throw new Error("Not authenticated");
+
+	return await forkRepository(auth.octokit, org, repo);
+}
+
+/**
+ * Create a new branch
+ */
+export async function doCreateBranch(
+	org: string,
+	repo: string,
+	branchName: string,
+	sourceBranch: string,
+): Promise<string> {
+	const auth = await getOctokit();
+	if (!auth) throw new Error("Not authenticated");
+
+	return await createBranch(auth.octokit, org, repo, branchName, sourceBranch);
+}
+
+/**
+ * Check if there's an existing PR for a branch
+ */
+export async function checkExistingPR(
+	org: string,
+	repo: string,
+	headBranch: string,
+	headOwner?: string,
+): Promise<PullRequestInfo | null> {
+	const auth = await getOctokit();
+	if (!auth) return null;
+
+	try {
+		return await getExistingPullRequest(auth.octokit, org, repo, headBranch, headOwner);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Create a pull request
+ */
+export async function doCreatePullRequest(
+	org: string,
+	repo: string,
+	params: {
+		title: string;
+		body?: string;
+		head: string;
+		base: string;
+		draft?: boolean;
+	},
+): Promise<PullRequestInfo> {
+	const auth = await getOctokit();
+	if (!auth) throw new Error("Not authenticated");
+
+	return await createPullRequest(auth.octokit, org, repo, params);
+}
+
+export type { ForkInfo, PullRequestInfo };
