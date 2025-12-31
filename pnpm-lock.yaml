@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  axios-proxy-builder@0.1.2:
+    hash: cddf66494175f29f231f71fdca56b91b45160d757816481d640eb7366390a7a7
+    path: patches/axios-proxy-builder@0.1.2.patch
+
 importers:
 
   .:
@@ -3855,7 +3860,7 @@ snapshots:
   '@j178/prek@0.2.22':
     dependencies:
       axios: 1.13.2
-      axios-proxy-builder: 0.1.2
+      axios-proxy-builder: 0.1.2(patch_hash=cddf66494175f29f231f71fdca56b91b45160d757816481d640eb7366390a7a7)
       console.table: 0.10.0
       detect-libc: 2.1.2
       rimraf: 6.1.2
@@ -4108,7 +4113,7 @@ snapshots:
   '@posthog/cli@0.5.19':
     dependencies:
       axios: 1.13.2
-      axios-proxy-builder: 0.1.2
+      axios-proxy-builder: 0.1.2(patch_hash=cddf66494175f29f231f71fdca56b91b45160d757816481d640eb7366390a7a7)
       console.table: 0.10.0
       detect-libc: 2.1.2
       rimraf: 6.1.2
@@ -4765,7 +4770,7 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios-proxy-builder@0.1.2:
+  axios-proxy-builder@0.1.2(patch_hash=cddf66494175f29f231f71fdca56b91b45160d757816481d640eb7366390a7a7):
     dependencies:
       tunnel: 0.0.6
 
