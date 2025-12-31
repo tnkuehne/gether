@@ -173,7 +173,7 @@
 								</Badge>
 							</div>
 
-							<div class="min-w-0 flex-1">
+							<div class="min-w-0 flex-1 overflow-hidden">
 								{#if readonly}
 									<div class="rounded-md bg-muted/50 px-3 py-1.5 text-sm">
 										{#if field.type === "array"}
