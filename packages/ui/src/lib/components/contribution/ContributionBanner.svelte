@@ -12,8 +12,6 @@
 	import type { ForkInfo, PullRequestInfo } from "$lib/github-app";
 
 	interface Props {
-		org: string;
-		repo: string;
 		branch: string;
 		path: string;
 		canEdit: boolean;
@@ -25,12 +23,14 @@
 		justCommitted?: boolean;
 		onCreateBranch: (branchName: string) => Promise<void>;
 		onFork: () => Promise<ForkInfo>;
-		onCreatePR: (params: { title: string; body: string; draft: boolean }) => Promise<PullRequestInfo>;
+		onCreatePR: (params: {
+			title: string;
+			body: string;
+			draft: boolean;
+		}) => Promise<PullRequestInfo>;
 	}
 
 	let {
-		org,
-		repo,
 		branch,
 		path,
 		canEdit,
@@ -70,7 +70,11 @@
 	let createdPR = $state<PullRequestInfo | null>(null);
 
 	function generateBranchName(): string {
-		const filename = path.split("/").pop()?.replace(/\.[^.]+$/, "") || "edit";
+		const filename =
+			path
+				.split("/")
+				.pop()
+				?.replace(/\.[^.]+$/, "") || "edit";
 		const date = new Date().toISOString().slice(0, 10);
 		return `${currentUser || "edit"}/${filename}-${date}`;
 	}
@@ -141,10 +145,15 @@
 </script>
 
 {#if showBanner}
-	<div class="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
+	<div
+		class="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950"
+	>
 		{#if !canEdit}
 			<div class="flex flex-1 items-center gap-2">
-				<Badge variant="outline" class="border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-300">
+				<Badge
+					variant="outline"
+					class="border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-300"
+				>
 					Read-only
 				</Badge>
 				<span class="text-amber-700 dark:text-amber-300">
@@ -164,12 +173,7 @@
 						Go to your fork
 					</Button>
 				{:else}
-					<Button
-						size="sm"
-						variant="outline"
-						onclick={handleFork}
-						disabled={isForkingRepo}
-					>
+					<Button size="sm" variant="outline" onclick={handleFork} disabled={isForkingRepo}>
 						<GitFork class="mr-1.5 size-3.5" />
 						{isForkingRepo ? "Forking..." : "Fork repository"}
 					</Button>
@@ -180,7 +184,10 @@
 			{/if}
 		{:else if isProtected}
 			<div class="flex flex-1 items-center gap-2">
-				<Badge variant="outline" class="border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-300">
+				<Badge
+					variant="outline"
+					class="border-amber-300 bg-amber-100 text-amber-700 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-300"
+				>
 					Protected
 				</Badge>
 				<span class="text-amber-700 dark:text-amber-300">
@@ -196,7 +203,11 @@
 {/if}
 
 {#if showPROption || justCommitted}
-	<div class="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm {justCommitted ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950' : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950'}">
+	<div
+		class="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm {justCommitted
+			? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+			: 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950'}"
+	>
 		<div class="flex flex-1 items-center gap-2">
 			{#if justCommitted}
 				<Check class="size-4 text-green-600 dark:text-green-400" />
@@ -210,7 +221,11 @@
 				</span>
 			{/if}
 		</div>
-		<Button size="sm" variant={justCommitted ? "default" : "outline"} onclick={() => (prDialogOpen = true)}>
+		<Button
+			size="sm"
+			variant={justCommitted ? "default" : "outline"}
+			onclick={() => (prDialogOpen = true)}
+		>
 			<GitPullRequest class="mr-1.5 size-3.5" />
 			Create PR
 		</Button>
@@ -218,18 +233,16 @@
 {/if}
 
 {#if existingPR && !isOnDefaultBranch}
-	<div class="flex flex-wrap items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm dark:border-green-800 dark:bg-green-950">
+	<div
+		class="flex flex-wrap items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm dark:border-green-800 dark:bg-green-950"
+	>
 		<div class="flex flex-1 items-center gap-2">
 			<GitPullRequest class="size-4 text-green-600 dark:text-green-400" />
 			<span class="text-green-700 dark:text-green-300">
 				Pull request <strong>#{existingPR.number}</strong> is open for this branch.
 			</span>
 		</div>
-		<Button
-			size="sm"
-			variant="outline"
-			onclick={() => window.open(existingPR.htmlUrl, "_blank")}
-		>
+		<Button size="sm" variant="outline" onclick={() => window.open(existingPR.htmlUrl, "_blank")}>
 			View PR
 			<ExternalLink class="ml-1.5 size-3.5" />
 		</Button>
@@ -264,9 +277,7 @@
 			{/if}
 		</Field.Field>
 		<Dialog.Footer>
-			<Button variant="outline" onclick={() => (branchDialogOpen = false)}>
-				Cancel
-			</Button>
+			<Button variant="outline" onclick={() => (branchDialogOpen = false)}>Cancel</Button>
 			<Button onclick={handleCreateBranch} disabled={!newBranchName.trim() || isCreatingBranch}>
 				{isCreatingBranch ? "Creating..." : "Create branch"}
 			</Button>
@@ -287,13 +298,20 @@
 					<div class="flex-1">
 						<p class="font-medium">{createdPR.title}</p>
 						<p class="text-sm text-muted-foreground">
-							#{createdPR.number} {createdPR.draft ? "(Draft)" : ""}
+							#{createdPR.number}
+							{createdPR.draft ? "(Draft)" : ""}
 						</p>
 					</div>
 				</div>
 			</div>
 			<Dialog.Footer>
-				<Button variant="outline" onclick={() => { prDialogOpen = false; createdPR = null; }}>
+				<Button
+					variant="outline"
+					onclick={() => {
+						prDialogOpen = false;
+						createdPR = null;
+					}}
+				>
 					Close
 				</Button>
 				<Button onclick={() => window.open(createdPR?.htmlUrl, "_blank")}>
@@ -305,17 +323,14 @@
 			<Dialog.Header>
 				<Dialog.Title>Create a pull request</Dialog.Title>
 				<Dialog.Description>
-					Open a pull request to merge <strong>{branch}</strong> into <strong>{defaultBranch}</strong>.
+					Open a pull request to merge <strong>{branch}</strong> into
+					<strong>{defaultBranch}</strong>.
 				</Dialog.Description>
 			</Dialog.Header>
 			<div class="space-y-4 py-4">
 				<Field.Field data-invalid={!!prError}>
 					<Field.Label for="pr-title">Title</Field.Label>
-					<Input
-						id="pr-title"
-						bind:value={prTitle}
-						placeholder="Add feature X"
-					/>
+					<Input id="pr-title" bind:value={prTitle} placeholder="Add feature X" />
 				</Field.Field>
 				<Field.Field>
 					<Field.Label for="pr-body">Description (optional)</Field.Label>
@@ -323,7 +338,7 @@
 						id="pr-body"
 						bind:value={prBody}
 						placeholder="Describe your changes..."
-						class="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+						class="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 					></textarea>
 				</Field.Field>
 				<div class="flex items-center gap-2">
@@ -333,18 +348,14 @@
 						bind:checked={prDraft}
 						class="size-4 rounded border-gray-300"
 					/>
-					<label for="pr-draft" class="text-sm">
-						Create as draft pull request
-					</label>
+					<label for="pr-draft" class="text-sm"> Create as draft pull request </label>
 				</div>
 				{#if prError}
 					<p class="text-sm text-destructive">{prError}</p>
 				{/if}
 			</div>
 			<Dialog.Footer>
-				<Button variant="outline" onclick={() => (prDialogOpen = false)}>
-					Cancel
-				</Button>
+				<Button variant="outline" onclick={() => (prDialogOpen = false)}>Cancel</Button>
 				<Button onclick={handleCreatePR} disabled={!prTitle.trim() || isCreatingPR}>
 					{isCreatingPR ? "Creating..." : "Create pull request"}
 				</Button>
@@ -352,4 +363,3 @@
 		{/if}
 	</Dialog.Content>
 </Dialog.Root>
-</script>

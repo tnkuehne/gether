@@ -159,19 +159,26 @@
 				defaultBranchPromise,
 				currentUserPromise,
 				existingForkPromise,
-			]).then(async ([canEditResult, isProtectedResult, defaultBranchResult, userResult, forkResult]) => {
-				canEdit = canEditResult;
-				isProtected = isProtectedResult;
-				defaultBranch = defaultBranchResult;
-				currentUser = userResult;
-				existingFork = forkResult;
+			]).then(
+				async ([canEditResult, isProtectedResult, defaultBranchResult, userResult, forkResult]) => {
+					canEdit = canEditResult;
+					isProtected = isProtectedResult;
+					defaultBranch = defaultBranchResult;
+					currentUser = userResult;
+					existingFork = forkResult;
 
-				// Check for existing PR if we're not on default branch
-				if (defaultBranchResult && currentBranch !== defaultBranchResult) {
-					const pr = await checkExistingPR(currentOrg, currentRepo, currentBranch, userResult ?? undefined);
-					existingPR = pr;
-				}
-			});
+					// Check for existing PR if we're not on default branch
+					if (defaultBranchResult && currentBranch !== defaultBranchResult) {
+						const pr = await checkExistingPR(
+							currentOrg,
+							currentRepo,
+							currentBranch,
+							userResult ?? undefined,
+						);
+						existingPR = pr;
+					}
+				},
+			);
 		}
 	});
 
@@ -492,7 +499,11 @@
 		return fork;
 	}
 
-	async function handleCreatePR(params: { title: string; body: string; draft: boolean }): Promise<PullRequestInfo> {
+	async function handleCreatePR(params: {
+		title: string;
+		body: string;
+		draft: boolean;
+	}): Promise<PullRequestInfo> {
 		if (!defaultBranch) throw new Error("Default branch not found");
 
 		// For cross-repo PRs (forks), we need to include the owner
@@ -716,8 +727,6 @@
 	{#if $session.data}
 		<div class="mb-4 space-y-2">
 			<ContributionBanner
-				org={org!}
-				repo={repo!}
 				branch={currentBranch}
 				path={path!}
 				{canEdit}
