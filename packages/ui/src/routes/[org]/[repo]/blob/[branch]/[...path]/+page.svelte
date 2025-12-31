@@ -11,6 +11,7 @@
 	import { onDestroy } from "svelte";
 	import { SvelteMap } from "svelte/reactivity";
 	import CodeMirror from "$lib/components/editor/CodeMirror.svelte";
+	import FrontmatterEditor from "$lib/components/editor/FrontmatterEditor.svelte";
 	import { Octokit } from "octokit";
 	import { authClient } from "$lib/auth-client";
 	import { commitFile } from "$lib/github-app";
@@ -26,6 +27,7 @@
 		getGetherConfig,
 		type FileData,
 	} from "./github";
+	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
 
 	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 
@@ -56,6 +58,13 @@
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state("");
+
+	// Frontmatter state
+	let frontmatterFields = $state<FrontmatterField[]>([]);
+	let hasFrontmatter = $state(false);
+	let bodyContent = $state(""); // Content without frontmatter
+	// Editor content - what's shown in CodeMirror (bodyContent when hasFrontmatter, else content)
+	let editorContent = $state("");
 	const remoteCursors = new SvelteMap<
 		string,
 		{ position: number; color: string; userName?: string }
@@ -101,6 +110,14 @@
 		content = result.fileData.content;
 		originalContent = result.fileData.content;
 		lastValue = result.fileData.content;
+
+		// Parse frontmatter if present
+		const parsed = parseFrontmatter(result.fileData.content);
+		hasFrontmatter = parsed.hasFrontmatter;
+		frontmatterFields = parsed.frontmatter;
+		bodyContent = parsed.content;
+		// Set editor content based on whether frontmatter exists
+		editorContent = parsed.hasFrontmatter ? parsed.content : result.fileData.content;
 	}
 
 	// Check sandbox status when config loads
@@ -325,6 +342,39 @@
 		);
 	}
 
+	function handleFrontmatterChange(fields: FrontmatterField[]) {
+		frontmatterFields = fields;
+		// Recombine the document with updated frontmatter
+		const newContent = combineDocument(fields, bodyContent);
+		content = newContent;
+		lastValue = newContent;
+
+		// Broadcast the change to other connected clients
+		if (ws && ws.readyState === WebSocket.OPEN) {
+			ws.send(
+				JSON.stringify({
+					type: "change",
+					changes: { from: 0, to: lastValue.length, insert: newContent },
+				}),
+			);
+		}
+
+		// Sync to sandbox for HMR if preview is running
+		scheduleSyncToSandbox(newContent);
+	}
+
+	function handleEditorContentChange(newEditorContent: string) {
+		editorContent = newEditorContent;
+		// Recombine the document with updated body content
+		if (hasFrontmatter) {
+			bodyContent = newEditorContent;
+			const newContent = combineDocument(frontmatterFields, newEditorContent);
+			content = newContent;
+		} else {
+			content = newEditorContent;
+		}
+	}
+
 	function getCursorColor(connectionId: string): string {
 		const colors = [
 			"rgba(59, 130, 246, 0.8)", // blue
@@ -352,6 +402,14 @@
 			isRemoteUpdate = true;
 			content = originalContent;
 			lastValue = originalContent;
+
+			// Re-parse frontmatter from original content
+			const parsed = parseFrontmatter(originalContent);
+			hasFrontmatter = parsed.hasFrontmatter;
+			frontmatterFields = parsed.frontmatter;
+			bodyContent = parsed.content;
+			editorContent = parsed.hasFrontmatter ? parsed.content : originalContent;
+
 			isRemoteUpdate = false;
 
 			// Broadcast the reset to other connected clients
@@ -801,17 +859,35 @@
 						<div class="hidden sm:block">
 							<ResizablePaneGroup direction="horizontal" class="min-h-125">
 								<ResizablePane defaultSize={50} minSize={30}>
-									{#await canEditPromise then canEdit}
-										<CodeMirror
-											bind:this={editorRef}
-											bind:value={content}
-											onchange={handleEditorChange}
-											oncursorchange={handleCursorChange}
-											remoteCursors={Array.from(remoteCursors.values())}
-											remoteSelections={Array.from(remoteSelections.values())}
-											readonly={!$session.data || !canEdit}
-										/>
-									{/await}
+									<div class="flex h-full flex-col">
+										{#await canEditPromise then canEdit}
+											{#if hasFrontmatter}
+												<FrontmatterEditor
+													bind:fields={frontmatterFields}
+													readonly={!$session.data || !canEdit}
+													onchange={handleFrontmatterChange}
+												/>
+											{/if}
+											<div class="flex-1">
+												<CodeMirror
+													bind:this={editorRef}
+													bind:value={editorContent}
+													onchange={(newValue) => {
+														handleEditorContentChange(newValue);
+														handleEditorChange(
+															hasFrontmatter
+																? combineDocument(frontmatterFields, newValue)
+																: newValue,
+														);
+													}}
+													oncursorchange={handleCursorChange}
+													remoteCursors={Array.from(remoteCursors.values())}
+													remoteSelections={Array.from(remoteSelections.values())}
+													readonly={!$session.data || !canEdit}
+												/>
+											</div>
+										{/await}
+									</div>
 								</ResizablePane>
 								<ResizableHandle withHandle />
 								<ResizablePane defaultSize={50} minSize={30}>
@@ -824,7 +900,10 @@
 										></iframe>
 									{:else if isMarkdown}
 										<div class="h-full overflow-auto bg-background p-6">
-											<Streamdown {content} baseTheme="shadcn" />
+											<Streamdown
+												content={hasFrontmatter ? bodyContent : content}
+												baseTheme="shadcn"
+											/>
 										</div>
 									{:else if sandboxStatus === "running" && previewUrl}
 										<iframe
@@ -841,10 +920,22 @@
 						<div class="sm:hidden">
 							{#if mobileView === "code"}
 								{#await canEditPromise then canEdit}
+									{#if hasFrontmatter}
+										<FrontmatterEditor
+											bind:fields={frontmatterFields}
+											readonly={!$session.data || !canEdit}
+											onchange={handleFrontmatterChange}
+										/>
+									{/if}
 									<CodeMirror
 										bind:this={editorRef}
-										bind:value={content}
-										onchange={handleEditorChange}
+										bind:value={editorContent}
+										onchange={(newValue) => {
+											handleEditorContentChange(newValue);
+											handleEditorChange(
+												hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
+											);
+										}}
 										oncursorchange={handleCursorChange}
 										remoteCursors={Array.from(remoteCursors.values())}
 										remoteSelections={Array.from(remoteSelections.values())}
@@ -860,7 +951,7 @@
 								></iframe>
 							{:else if isMarkdown}
 								<div class="min-h-[50vh] overflow-auto bg-background p-4">
-									<Streamdown {content} baseTheme="shadcn" />
+									<Streamdown content={hasFrontmatter ? bodyContent : content} baseTheme="shadcn" />
 								</div>
 							{:else if sandboxStatus === "running" && previewUrl}
 								<iframe
@@ -873,10 +964,22 @@
 						</div>
 					{:else}
 						{#await canEditPromise then canEdit}
+							{#if hasFrontmatter}
+								<FrontmatterEditor
+									bind:fields={frontmatterFields}
+									readonly={!$session.data || !canEdit}
+									onchange={handleFrontmatterChange}
+								/>
+							{/if}
 							<CodeMirror
 								bind:this={editorRef}
-								bind:value={content}
-								onchange={handleEditorChange}
+								bind:value={editorContent}
+								onchange={(newValue) => {
+									handleEditorContentChange(newValue);
+									handleEditorChange(
+										hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
+									);
+								}}
 								oncursorchange={handleCursorChange}
 								remoteCursors={Array.from(remoteCursors.values())}
 								remoteSelections={Array.from(remoteSelections.values())}

@@ -17,6 +17,7 @@ A collaborative content editor for markdown or static site generators without lo
 - [x] Live Content Preview (Cloudflare Sandboxes)
 - [x] Just use existing GitHub Auth
 - [x] File navigation
+- [x] UI for frontmatter
 
 ## Roadmap
 
@@ -26,7 +27,6 @@ A collaborative content editor for markdown or static site generators without lo
 - [ ] Showing and writing comments on pull requests in UI
 - [ ] Media upload
 - [ ] Collections for easier content navigation
-- [ ] UI for frontmatter
 - [ ] Offline Support via CRDTs
 - [ ] MDX component insertion
 
