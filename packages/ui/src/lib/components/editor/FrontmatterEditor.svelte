@@ -223,7 +223,7 @@
 											const target = e.target as HTMLInputElement;
 											handleFieldChange(index, target.value);
 										}}
-										class="h-8 text-sm"
+										class="h-8 w-full text-sm"
 									/>
 								{:else if field.type === "number"}
 									<Input
