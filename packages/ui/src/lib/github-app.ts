@@ -173,6 +173,7 @@ export async function checkWritePermission(octokit: Octokit, org: string, repo: 
 
 /**
  * Check if a branch is protected
+ * Uses the branch API which includes a 'protected' field accessible without admin permissions
  */
 export async function checkBranchProtection(
 	octokit: Octokit,
@@ -181,14 +182,13 @@ export async function checkBranchProtection(
 	branch: string,
 ): Promise<boolean> {
 	try {
-		await octokit.rest.repos.getBranchProtection({
+		const { data } = await octokit.rest.repos.getBranch({
 			owner: org,
 			repo: repo,
 			branch: branch,
 		});
-		return true;
+		return data.protected;
 	} catch {
-		// 404 means no protection rules
 		return false;
 	}
 }

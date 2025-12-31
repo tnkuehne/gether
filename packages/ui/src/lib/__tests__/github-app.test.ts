@@ -381,21 +381,21 @@ describe("github-app", () => {
 	});
 
 	describe("checkBranchProtection", () => {
-		let mockOctokit: { rest: { repos: { getBranchProtection: ReturnType<typeof vi.fn> } } };
+		let mockOctokit: { rest: { repos: { getBranch: ReturnType<typeof vi.fn> } } };
 
 		beforeEach(() => {
 			mockOctokit = {
 				rest: {
 					repos: {
-						getBranchProtection: vi.fn(),
+						getBranch: vi.fn(),
 					},
 				},
 			};
 		});
 
 		it("should return true when branch is protected", async () => {
-			mockOctokit.rest.repos.getBranchProtection.mockResolvedValue({
-				data: { required_status_checks: {} },
+			mockOctokit.rest.repos.getBranch.mockResolvedValue({
+				data: { protected: true, name: "main" },
 			});
 
 			const result = await checkBranchProtection(
@@ -409,13 +409,28 @@ describe("github-app", () => {
 		});
 
 		it("should return false when branch is not protected", async () => {
-			mockOctokit.rest.repos.getBranchProtection.mockRejectedValue(new Error("Not Found"));
+			mockOctokit.rest.repos.getBranch.mockResolvedValue({
+				data: { protected: false, name: "feature" },
+			});
 
 			const result = await checkBranchProtection(
 				mockOctokit as unknown as Octokit,
 				"org",
 				"repo",
 				"feature",
+			);
+
+			expect(result).toBe(false);
+		});
+
+		it("should return false when API call fails", async () => {
+			mockOctokit.rest.repos.getBranch.mockRejectedValue(new Error("API Error"));
+
+			const result = await checkBranchProtection(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"unknown",
 			);
 
 			expect(result).toBe(false);
