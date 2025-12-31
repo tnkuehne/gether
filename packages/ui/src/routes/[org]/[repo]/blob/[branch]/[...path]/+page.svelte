@@ -900,7 +900,10 @@
 										></iframe>
 									{:else if isMarkdown}
 										<div class="h-full overflow-auto bg-background p-6">
-											<Streamdown {content} baseTheme="shadcn" />
+											<Streamdown
+												content={hasFrontmatter ? bodyContent : content}
+												baseTheme="shadcn"
+											/>
 										</div>
 									{:else if sandboxStatus === "running" && previewUrl}
 										<iframe
@@ -948,7 +951,7 @@
 								></iframe>
 							{:else if isMarkdown}
 								<div class="min-h-[50vh] overflow-auto bg-background p-4">
-									<Streamdown {content} baseTheme="shadcn" />
+									<Streamdown content={hasFrontmatter ? bodyContent : content} baseTheme="shadcn" />
 								</div>
 							{:else if sandboxStatus === "running" && previewUrl}
 								<iframe
