@@ -489,8 +489,8 @@
 	// Contribution workflow handlers
 	async function handleCreateBranch(branchName: string) {
 		await doCreateBranch(currentOrg, currentRepo, branchName, currentBranch);
-		// Navigate to the new branch
-		goto(`/${currentOrg}/${currentRepo}/blob/${branchName}/${path}`);
+		// Navigate to the new branch (encode branch name to handle slashes)
+		goto(`/${currentOrg}/${currentRepo}/blob/${encodeURIComponent(branchName)}/${path}`);
 	}
 
 	async function handleFork(): Promise<ForkInfo> {
