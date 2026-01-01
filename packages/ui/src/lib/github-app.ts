@@ -483,40 +483,67 @@ export function groupCommentsByLine(
 	// Filter comments for this file only
 	const fileComments = comments.filter((c) => c.path === filePath);
 
-	// Simple approach: group all comments by line, then sort them chronologically
-	// This ensures all comments show up even if threading logic has issues
-	for (const comment of fileComments) {
-		const isFileLevel = comment.subject_type === "file";
+	// Separate top-level comments from replies
+	const topLevelComments = fileComments.filter((c) => !c.in_reply_to_id);
+	const replies = fileComments.filter((c) => c.in_reply_to_id);
 
-		// File-level comments use line 0, line-specific use actual line number
+	// Build a map of parent comment ID -> array of reply comments
+	const repliesByParent = new Map<number, PRComment[]>();
+	for (const reply of replies) {
+		if (!reply.in_reply_to_id) continue;
+		if (!repliesByParent.has(reply.in_reply_to_id)) {
+			repliesByParent.set(reply.in_reply_to_id, []);
+		}
+		repliesByParent.get(reply.in_reply_to_id)!.push(reply);
+	}
+
+	// Process each top-level comment to create threads
+	let uniqueThreadId = 0;
+
+	for (const topComment of topLevelComments) {
+		// Determine the line number for this comment
+		const isFileLevel = topComment.subject_type === "file";
 		let line: number;
+
 		if (isFileLevel) {
-			line = 0; // Special marker for file-level comments
+			line = 0; // File-level comments use line 0
 		} else {
-			const commentLine = comment.line ?? comment.original_line;
-			if (!commentLine) continue;
+			const commentLine = topComment.line ?? topComment.original_line;
+			if (!commentLine) continue; // Skip if no line info
 			line = commentLine;
 		}
 
-		if (!threads.has(line)) {
-			threads.set(line, {
-				line,
-				comments: [],
-				resolved: false,
-				isFileLevel,
-			});
-		}
+		// Collect all replies for this top-level comment (recursively)
+		const threadComments: PRComment[] = [topComment];
 
-		threads.get(line)!.comments.push(comment);
-	}
+		const collectReplies = (parentId: number) => {
+			const childReplies = repliesByParent.get(parentId);
+			if (childReplies) {
+				for (const reply of childReplies) {
+					threadComments.push(reply);
+					collectReplies(reply.id); // Recursively collect nested replies
+				}
+			}
+		};
 
-	// Sort comments within each thread by creation date
-	// This will naturally group replies after their parent comments
-	threads.forEach((thread) => {
-		thread.comments.sort(
+		collectReplies(topComment.id);
+
+		// Sort all comments in this thread by creation time
+		threadComments.sort(
 			(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
 		);
-	});
+
+		// Use a unique key to allow multiple threads on the same line
+		// Format: line * 1000000 + uniqueThreadId
+		const threadKey = line * 1000000 + uniqueThreadId++;
+
+		threads.set(threadKey, {
+			line,
+			comments: threadComments,
+			resolved: false,
+			isFileLevel,
+		});
+	}
 
 	return threads;
 }
