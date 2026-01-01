@@ -470,6 +470,7 @@ export async function fetchPRComments(
 
 /**
  * Group comments by file path and line number
+ * Filters out file-level comments (comments not tied to a specific line)
  */
 export function groupCommentsByLine(
 	comments: PRComment[],
@@ -481,6 +482,12 @@ export function groupCommentsByLine(
 	const fileComments = comments.filter((c) => c.path === filePath);
 
 	for (const comment of fileComments) {
+		// Skip file-level comments (not tied to a specific line)
+		// File-level comments have null position and are general comments about the file
+		if (comment.position === null && comment.original_position === null) {
+			continue;
+		}
+
 		// Use line or original_line depending on which side we're viewing
 		const line = comment.line ?? comment.original_line;
 		if (!line) continue;
