@@ -18,12 +18,12 @@ A collaborative content editor for markdown or static site generators without lo
 - [x] Just use existing GitHub Auth
 - [x] File navigation
 - [x] UI for frontmatter
+- [x] Branching and Forking
+- [x] Opening pull requests
 
 ## Roadmap
 
 - [ ] wysiwyg editor
-- [ ] (Automatic) Branching and Forking
-- [ ] Opening draft pull requests
 - [ ] Showing and writing comments on pull requests in UI
 - [ ] Media upload
 - [ ] Collections for easier content navigation
