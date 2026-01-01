@@ -165,9 +165,9 @@
 					<Button
 						size="sm"
 						variant="outline"
-						onclick={() => {
-							window.location.href = `/${existingFork.owner}/${existingFork.repo}/blob/${encodeURIComponent(branch)}/${path}`;
-						}}
+						href="/{existingFork.owner}/{existingFork.repo}/blob/{encodeURIComponent(
+							branch,
+						)}/{path}"
 					>
 						<GitFork class="mr-1.5 size-3.5" />
 						Go to your fork
@@ -242,7 +242,7 @@
 				Pull request <strong>#{existingPR.number}</strong> is open for this branch.
 			</span>
 		</div>
-		<Button size="sm" variant="outline" onclick={() => window.open(existingPR.htmlUrl, "_blank")}>
+		<Button size="sm" variant="outline" href={existingPR.htmlUrl} target="_blank">
 			View PR
 			<ExternalLink class="ml-1.5 size-3.5" />
 		</Button>
@@ -314,7 +314,7 @@
 				>
 					Close
 				</Button>
-				<Button onclick={() => window.open(createdPR?.htmlUrl, "_blank")}>
+				<Button href={createdPR?.htmlUrl} target="_blank">
 					View on GitHub
 					<ExternalLink class="ml-1.5 size-3.5" />
 				</Button>

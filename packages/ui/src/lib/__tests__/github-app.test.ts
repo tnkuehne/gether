@@ -755,6 +755,22 @@ describe("github-app", () => {
 			expect(result).toBeNull();
 		});
 
+		it("should use org:branch format for same-repo PRs", async () => {
+			mockOctokit.rest.pulls.list.mockResolvedValue({
+				data: [],
+			});
+
+			await getExistingPullRequest(mockOctokit as unknown as Octokit, "org", "repo", "feature");
+
+			expect(mockOctokit.rest.pulls.list).toHaveBeenCalledWith({
+				owner: "org",
+				repo: "repo",
+				head: "org:feature",
+				state: "open",
+				per_page: 1,
+			});
+		});
+
 		it("should handle cross-repo PRs with headOwner", async () => {
 			mockOctokit.rest.pulls.list.mockResolvedValue({
 				data: [],

@@ -345,7 +345,8 @@ export async function getExistingPullRequest(
 	headOwner?: string,
 ): Promise<PullRequestInfo | null> {
 	try {
-		const head = headOwner && headOwner !== org ? `${headOwner}:${headBranch}` : headBranch;
+		// GitHub API requires head in format "owner:branch"
+		const head = `${headOwner || org}:${headBranch}`;
 
 		const { data: prs } = await octokit.rest.pulls.list({
 			owner: org,
