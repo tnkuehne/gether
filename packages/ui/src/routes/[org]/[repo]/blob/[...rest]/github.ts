@@ -13,8 +13,12 @@ import {
 	getExistingPullRequest,
 	getAuthenticatedUser,
 	createBranch,
+	fetchPRComments,
+	groupCommentsByLine,
 	type ForkInfo,
 	type PullRequestInfo,
+	type PRComment,
+	type PRCommentThread,
 } from "$lib/github-app";
 
 async function getOctokit(): Promise<{ octokit: Octokit; accessToken: string } | null> {
@@ -333,4 +337,35 @@ export async function doCreatePullRequest(
 	return await createPullRequest(auth.octokit, org, repo, params);
 }
 
-export type { ForkInfo, PullRequestInfo };
+/**
+ * Get PR comments for a specific pull request
+ */
+export async function getPRComments(
+	org: string,
+	repo: string,
+	prNumber: number,
+): Promise<PRComment[]> {
+	const auth = await getOctokit();
+	if (!auth) return [];
+
+	try {
+		return await fetchPRComments(auth.octokit, org, repo, prNumber);
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Get PR comments grouped by line for a specific file
+ */
+export async function getPRCommentsForFile(
+	org: string,
+	repo: string,
+	prNumber: number,
+	filePath: string,
+): Promise<Map<number, PRCommentThread>> {
+	const comments = await getPRComments(org, repo, prNumber);
+	return groupCommentsByLine(comments, filePath);
+}
+
+export type { ForkInfo, PullRequestInfo, PRComment, PRCommentThread };

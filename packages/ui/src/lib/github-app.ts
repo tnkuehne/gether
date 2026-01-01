@@ -411,3 +411,97 @@ export async function createBranch(
 
 	return branchName;
 }
+
+/**
+ * Pull request review comment
+ */
+export interface PRComment {
+	id: number;
+	pull_request_review_id: number;
+	diff_hunk: string;
+	path: string;
+	position: number | null; // Position in diff (deprecated for multi-line)
+	original_position: number | null;
+	commit_id: string;
+	original_commit_id: string;
+	line: number | null; // Line number in file
+	original_line: number | null;
+	side: "LEFT" | "RIGHT"; // Which side of diff
+	start_line: number | null; // For multi-line comments
+	start_side: "LEFT" | "RIGHT" | null;
+	body: string;
+	user: {
+		login: string;
+		avatar_url: string;
+	};
+	created_at: string;
+	updated_at: string;
+	html_url: string;
+	in_reply_to_id: number | null; // For threaded comments
+}
+
+/**
+ * A thread of comments on a specific line
+ */
+export interface PRCommentThread {
+	line: number;
+	comments: PRComment[];
+	resolved: boolean;
+}
+
+/**
+ * Fetch review comments for a specific pull request
+ */
+export async function fetchPRComments(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	prNumber: number,
+): Promise<PRComment[]> {
+	const { data } = await octokit.rest.pulls.listReviewComments({
+		owner: org,
+		repo: repo,
+		pull_number: prNumber,
+		per_page: 100,
+	});
+
+	return data as PRComment[];
+}
+
+/**
+ * Group comments by file path and line number
+ */
+export function groupCommentsByLine(
+	comments: PRComment[],
+	filePath: string,
+): Map<number, PRCommentThread> {
+	const threads = new Map<number, PRCommentThread>();
+
+	// Filter comments for this file only
+	const fileComments = comments.filter((c) => c.path === filePath);
+
+	for (const comment of fileComments) {
+		// Use line or original_line depending on which side we're viewing
+		const line = comment.line ?? comment.original_line;
+		if (!line) continue;
+
+		if (!threads.has(line)) {
+			threads.set(line, {
+				line,
+				comments: [],
+				resolved: false,
+			});
+		}
+
+		threads.get(line)!.comments.push(comment);
+	}
+
+	// Sort comments within each thread by creation date
+	threads.forEach((thread) => {
+		thread.comments.sort(
+			(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+		);
+	});
+
+	return threads;
+}

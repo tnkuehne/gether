@@ -36,9 +36,11 @@
 		doCreatePullRequest,
 		getRepoBranches,
 		parseBranchAndPath,
+		getPRCommentsForFile,
 		type FileData,
 		type ForkInfo,
 		type PullRequestInfo,
+		type PRCommentThread,
 	} from "./github";
 	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
 
@@ -120,6 +122,9 @@
 	let existingPR = $state<PullRequestInfo | null>(null);
 	let justCommitted = $state(false);
 	let contributionDataLoaded = $state(false);
+
+	// PR comments state
+	let prComments = $state<Map<number, PRCommentThread>>(new Map());
 
 	// Initialize currentBranch when parsing completes
 	$effect(() => {
@@ -231,6 +236,36 @@
 			);
 		}
 	});
+
+	// Fetch and refresh PR comments when we have an existing PR
+	$effect(() => {
+		if (existingPR && path && $session.data) {
+			// Initial fetch
+			getPRCommentsForFile(org!, repo!, existingPR.number, path!).then((comments) => {
+				prComments = comments;
+			});
+
+			// Set up polling to refresh comments every 30 seconds
+			const refreshInterval = setInterval(() => {
+				getPRCommentsForFile(org!, repo!, existingPR.number, path!).then((comments) => {
+					prComments = comments;
+				});
+			}, 30000);
+
+			// Cleanup interval on unmount or when dependencies change
+			return () => {
+				clearInterval(refreshInterval);
+			};
+		}
+	});
+
+	// Comment click handler
+	function handleCommentClick() {
+		// Focus the editor when a comment is clicked
+		if (editorRef) {
+			editorRef.focus();
+		}
+	}
 
 	// Check sandbox status when config loads
 	$effect(() => {
@@ -1057,6 +1092,8 @@
 													oncursorchange={handleCursorChange}
 													remoteCursors={Array.from(remoteCursors.values())}
 													remoteSelections={Array.from(remoteSelections.values())}
+													{prComments}
+													onCommentClick={handleCommentClick}
 													readonly={!$session.data || !canEdit}
 												/>
 											</div>
@@ -1113,6 +1150,8 @@
 										oncursorchange={handleCursorChange}
 										remoteCursors={Array.from(remoteCursors.values())}
 										remoteSelections={Array.from(remoteSelections.values())}
+										{prComments}
+										onCommentClick={handleCommentClick}
 										readonly={!$session.data || !canEdit}
 									/>
 								{/await}
@@ -1157,6 +1196,8 @@
 								oncursorchange={handleCursorChange}
 								remoteCursors={Array.from(remoteCursors.values())}
 								remoteSelections={Array.from(remoteSelections.values())}
+								{prComments}
+								onCommentClick={handleCommentClick}
 								readonly={!$session.data || !canEdit}
 							/>
 						{/await}

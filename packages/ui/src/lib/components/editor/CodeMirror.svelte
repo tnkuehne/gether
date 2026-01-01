@@ -4,6 +4,8 @@
 	import { EditorState, StateEffect, StateField } from "@codemirror/state";
 	import { markdown } from "@codemirror/lang-markdown";
 	import { Decoration, type DecorationSet, WidgetType } from "@codemirror/view";
+	import type { PRCommentThread } from "$lib/github-app";
+	import { CommentGutterWidget } from "./comment-widgets";
 
 	interface RemoteCursor {
 		position: number;
@@ -26,6 +28,8 @@
 			| undefined,
 		remoteCursors = [] as RemoteCursor[],
 		remoteSelections = [] as RemoteSelection[],
+		prComments = new Map() as Map<number, PRCommentThread>,
+		onCommentClick = undefined as ((thread: PRCommentThread) => void) | undefined,
 		readonly = false,
 	}: {
 		value?: string;
@@ -33,6 +37,8 @@
 		oncursorchange?: (position: number, selection?: { from: number; to: number }) => void;
 		remoteCursors?: RemoteCursor[];
 		remoteSelections?: RemoteSelection[];
+		prComments?: Map<number, PRCommentThread>;
+		onCommentClick?: (thread: PRCommentThread) => void;
 		readonly?: boolean;
 	} = $props();
 
@@ -167,6 +173,52 @@
 		provide: (f) => EditorView.decorations.from(f),
 	});
 
+	// Effect to update PR comments
+	const updatePRCommentsEffect = StateEffect.define<Map<number, PRCommentThread>>();
+
+	// Field to store PR comment decorations
+	const prCommentsField = StateField.define<DecorationSet>({
+		create() {
+			return Decoration.none;
+		},
+		update(decorations, tr) {
+			decorations = decorations.map(tr.changes);
+
+			for (const effect of tr.effects) {
+				if (effect.is(updatePRCommentsEffect)) {
+					const comments = effect.value;
+					const widgets: ReturnType<typeof Decoration.widget>[] = [];
+
+					// Convert line numbers to document positions
+					comments.forEach((thread, line) => {
+						try {
+							// Line numbers are 1-based, CodeMirror is 0-based
+							const lineObj = tr.newDoc.line(line);
+							const pos = lineObj.from;
+
+							widgets.push(
+								Decoration.widget({
+									widget: new CommentGutterWidget(thread, () => {
+										onCommentClick?.(thread);
+									}),
+									side: -1, // Place before the line
+									block: false,
+								}).range(pos),
+							);
+						} catch {
+							// Line doesn't exist in current document
+						}
+					});
+
+					decorations = Decoration.set(widgets);
+				}
+			}
+
+			return decorations;
+		},
+		provide: (f) => EditorView.decorations.from(f),
+	});
+
 	function initializeEditor(container: HTMLDivElement) {
 		const state = EditorState.create({
 			doc: "",
@@ -175,6 +227,7 @@
 				markdown(),
 				remoteCursorsField,
 				remoteSelectionsField,
+				prCommentsField,
 				EditorView.updateListener.of((update) => {
 					if (update.docChanged && !isUpdatingFromRemote) {
 						const newValue = update.state.doc.toString();
@@ -239,6 +292,7 @@
 						markdown(),
 						remoteCursorsField,
 						remoteSelectionsField,
+						prCommentsField,
 						EditorView.updateListener.of((update) => {
 							if (update.docChanged && !isUpdatingFromRemote) {
 								const newValue = update.state.doc.toString();
@@ -283,6 +337,14 @@
 			if (editorView) {
 				editorView.dispatch({
 					effects: updateRemoteSelectionsEffect.of(remoteSelections),
+				});
+			}
+		});
+
+		$effect.pre(() => {
+			if (editorView) {
+				editorView.dispatch({
+					effects: updatePRCommentsEffect.of(prComments),
 				});
 			}
 		});
