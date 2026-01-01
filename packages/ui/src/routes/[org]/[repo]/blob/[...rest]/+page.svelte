@@ -1221,7 +1221,7 @@
 					{selectedThread.comments.length} comment{selectedThread.comments.length > 1 ? "s" : ""}
 				</span>
 				<span class="ml-auto rounded-md bg-secondary px-2 py-1 text-xs">
-					Line {selectedThread.line}
+					{selectedThread.isFileLevel ? "File comment" : `Line ${selectedThread.line}`}
 				</span>
 				<button
 					onclick={() => {

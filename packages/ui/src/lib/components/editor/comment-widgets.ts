@@ -25,6 +25,8 @@ export class CommentGutterWidget extends WidgetType {
 
 		const icon = document.createElement("div");
 		icon.className = "comment-icon";
+		// Use a different color for file-level comments
+		const backgroundColor = this.thread.isFileLevel ? "rgb(168, 85, 247)" : "rgb(37, 99, 235)";
 		icon.style.cssText = `
 			display: flex;
 			align-items: center;
@@ -32,19 +34,23 @@ export class CommentGutterWidget extends WidgetType {
 			width: 18px;
 			height: 18px;
 			border-radius: 9px;
-			background-color: rgb(37, 99, 235);
+			background-color: ${backgroundColor};
 			color: white;
 			font-size: 10px;
 			font-weight: 600;
 			transition: all 0.2s;
 		`;
 		icon.textContent = String(this.thread.comments.length);
-		icon.title = `${this.thread.comments.length} comment${this.thread.comments.length > 1 ? "s" : ""}`;
+		const commentType = this.thread.isFileLevel ? "File comment" : "Line comment";
+		icon.title = `${commentType}: ${this.thread.comments.length} comment${this.thread.comments.length > 1 ? "s" : ""}`;
 
 		// Hover effect
+		const shadowColor = this.thread.isFileLevel
+			? "rgba(168, 85, 247, 0.4)"
+			: "rgba(37, 99, 235, 0.4)";
 		icon.addEventListener("mouseenter", () => {
 			icon.style.transform = "scale(1.1)";
-			icon.style.boxShadow = "0 2px 8px rgba(37, 99, 235, 0.4)";
+			icon.style.boxShadow = `0 2px 8px ${shadowColor}`;
 		});
 		icon.addEventListener("mouseleave", () => {
 			icon.style.transform = "scale(1)";

@@ -192,8 +192,10 @@
 					// Convert line numbers to document positions
 					comments.forEach((thread, line) => {
 						try {
+							// File-level comments (line 0) are shown at line 1
 							// Line numbers are 1-based, CodeMirror is 0-based
-							const lineObj = tr.newDoc.line(line);
+							const displayLine = line === 0 ? 1 : line;
+							const lineObj = tr.newDoc.line(displayLine);
 							const pos = lineObj.from;
 
 							widgets.push(

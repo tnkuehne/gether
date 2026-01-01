@@ -438,15 +438,17 @@ export interface PRComment {
 	updated_at: string;
 	html_url: string;
 	in_reply_to_id: number | null; // For threaded comments
+	subject_type: "line" | "file"; // Whether this is a file-level or line-level comment
 }
 
 /**
- * A thread of comments on a specific line
+ * A thread of comments on a specific line or file
  */
 export interface PRCommentThread {
-	line: number;
+	line: number; // Use 0 for file-level comments
 	comments: PRComment[];
 	resolved: boolean;
+	isFileLevel: boolean; // True if this is a file-level comment thread
 }
 
 /**
@@ -470,7 +472,7 @@ export async function fetchPRComments(
 
 /**
  * Group comments by file path and line number
- * Filters out file-level comments (comments not tied to a specific line)
+ * Includes both file-level and line-specific comments
  */
 export function groupCommentsByLine(
 	comments: PRComment[],
@@ -482,21 +484,24 @@ export function groupCommentsByLine(
 	const fileComments = comments.filter((c) => c.path === filePath);
 
 	for (const comment of fileComments) {
-		// Skip file-level comments (not tied to a specific line)
-		// File-level comments have null position and are general comments about the file
-		if (comment.position === null && comment.original_position === null) {
-			continue;
-		}
+		const isFileLevel = comment.subject_type === "file";
 
-		// Use line or original_line depending on which side we're viewing
-		const line = comment.line ?? comment.original_line;
-		if (!line) continue;
+		// File-level comments use line 0, line-specific use actual line number
+		let line: number;
+		if (isFileLevel) {
+			line = 0; // Special marker for file-level comments
+		} else {
+			const commentLine = comment.line ?? comment.original_line;
+			if (!commentLine) continue;
+			line = commentLine;
+		}
 
 		if (!threads.has(line)) {
 			threads.set(line, {
 				line,
 				comments: [],
 				resolved: false,
+				isFileLevel,
 			});
 		}
 
