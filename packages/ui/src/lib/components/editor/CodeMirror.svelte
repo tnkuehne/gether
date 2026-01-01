@@ -190,8 +190,11 @@
 					const widgets: ReturnType<typeof Decoration.widget>[] = [];
 
 					// Convert line numbers to document positions
-					comments.forEach((thread, line) => {
+					// Note: Map keys are encoded as (line * 10000 + counter) to allow multiple threads per line
+					comments.forEach((thread) => {
 						try {
+							// Extract the actual line number from the thread
+							const line = thread.line;
 							// File-level comments (line 0) are shown at line 1
 							// Line numbers are 1-based, CodeMirror is 0-based
 							const displayLine = line === 0 ? 1 : line;

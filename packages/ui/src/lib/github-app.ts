@@ -471,7 +471,7 @@ export async function fetchPRComments(
 }
 
 /**
- * Group comments by file path and line number
+ * Group comments by file path and line number, respecting reply threading
  * Includes both file-level and line-specific comments
  */
 export function groupCommentsByLine(
@@ -483,37 +483,63 @@ export function groupCommentsByLine(
 	// Filter comments for this file only
 	const fileComments = comments.filter((c) => c.path === filePath);
 
-	for (const comment of fileComments) {
-		const isFileLevel = comment.subject_type === "file";
+	// First, separate top-level comments from replies
+	const topLevelComments = fileComments.filter((c) => !c.in_reply_to_id);
+	const replies = fileComments.filter((c) => c.in_reply_to_id);
+
+	// Build a map of comment ID to replies for quick lookup
+	const repliesByParent = new Map<number, PRComment[]>();
+	for (const reply of replies) {
+		const parentId = reply.in_reply_to_id!;
+		if (!repliesByParent.has(parentId)) {
+			repliesByParent.set(parentId, []);
+		}
+		repliesByParent.get(parentId)!.push(reply);
+	}
+
+	// Build threads from top-level comments
+	let threadCounter = 0;
+	for (const topComment of topLevelComments) {
+		const isFileLevel = topComment.subject_type === "file";
 
 		// File-level comments use line 0, line-specific use actual line number
 		let line: number;
 		if (isFileLevel) {
 			line = 0; // Special marker for file-level comments
 		} else {
-			const commentLine = comment.line ?? comment.original_line;
+			const commentLine = topComment.line ?? topComment.original_line;
 			if (!commentLine) continue;
 			line = commentLine;
 		}
 
-		if (!threads.has(line)) {
-			threads.set(line, {
-				line,
-				comments: [],
-				resolved: false,
-				isFileLevel,
-			});
-		}
+		// Create a unique key for each thread (line number + thread counter)
+		// This allows multiple threads on the same line
+		const threadKey = line * 10000 + threadCounter++;
 
-		threads.get(line)!.comments.push(comment);
-	}
+		// Collect all replies recursively
+		const threadComments: PRComment[] = [topComment];
+		const collectReplies = (parentId: number) => {
+			const commentReplies = repliesByParent.get(parentId) || [];
+			for (const reply of commentReplies) {
+				threadComments.push(reply);
+				// Recursively collect nested replies
+				collectReplies(reply.id);
+			}
+		};
+		collectReplies(topComment.id);
 
-	// Sort comments within each thread by creation date
-	threads.forEach((thread) => {
-		thread.comments.sort(
+		// Sort comments within thread by creation date
+		threadComments.sort(
 			(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
 		);
-	});
+
+		threads.set(threadKey, {
+			line,
+			comments: threadComments,
+			resolved: false,
+			isFileLevel,
+		});
+	}
 
 	return threads;
 }
