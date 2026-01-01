@@ -483,67 +483,85 @@ export function groupCommentsByLine(
 	// Filter comments for this file only
 	const fileComments = comments.filter((c) => c.path === filePath);
 
-	// Separate top-level comments from replies
-	const topLevelComments = fileComments.filter((c) => !c.in_reply_to_id);
-	const replies = fileComments.filter((c) => c.in_reply_to_id);
+	// Simple approach: group all comments by line, then sort them chronologically
+	// This ensures all comments show up even if threading logic has issues
+	for (const comment of fileComments) {
+		const isFileLevel = comment.subject_type === "file";
 
-	// Build a map of parent comment ID -> array of reply comments
-	const repliesByParent = new Map<number, PRComment[]>();
-	for (const reply of replies) {
-		if (!reply.in_reply_to_id) continue;
-		if (!repliesByParent.has(reply.in_reply_to_id)) {
-			repliesByParent.set(reply.in_reply_to_id, []);
-		}
-		repliesByParent.get(reply.in_reply_to_id)!.push(reply);
-	}
-
-	// Process each top-level comment to create threads
-	let uniqueThreadId = 0;
-
-	for (const topComment of topLevelComments) {
-		// Determine the line number for this comment
-		const isFileLevel = topComment.subject_type === "file";
+		// File-level comments use line 0, line-specific use actual line number
 		let line: number;
-
 		if (isFileLevel) {
-			line = 0; // File-level comments use line 0
+			line = 0; // Special marker for file-level comments
 		} else {
-			const commentLine = topComment.line ?? topComment.original_line;
-			if (!commentLine) continue; // Skip if no line info
+			const commentLine = comment.line ?? comment.original_line;
+			if (!commentLine) continue;
 			line = commentLine;
 		}
 
-		// Collect all replies for this top-level comment (recursively)
-		const threadComments: PRComment[] = [topComment];
+		if (!threads.has(line)) {
+			threads.set(line, {
+				line,
+				comments: [],
+				resolved: false,
+				isFileLevel,
+			});
+		}
 
-		const collectReplies = (parentId: number) => {
-			const childReplies = repliesByParent.get(parentId);
-			if (childReplies) {
-				for (const reply of childReplies) {
-					threadComments.push(reply);
-					collectReplies(reply.id); // Recursively collect nested replies
-				}
-			}
-		};
-
-		collectReplies(topComment.id);
-
-		// Sort all comments in this thread by creation time
-		threadComments.sort(
-			(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-		);
-
-		// Use a unique key to allow multiple threads on the same line
-		// Format: line * 1000000 + uniqueThreadId
-		const threadKey = line * 1000000 + uniqueThreadId++;
-
-		threads.set(threadKey, {
-			line,
-			comments: threadComments,
-			resolved: false,
-			isFileLevel,
-		});
+		threads.get(line)!.comments.push(comment);
 	}
 
-	return threads;
+	// Sort comments within each thread by creation date
+	threads.forEach((thread) => {
+		thread.comments.sort(
+			(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+		);
+	});
+
+	// Now split threads by conversation (separate threads for replies vs separate top-level comments)
+	const finalThreads = new Map<number, PRCommentThread>();
+	let threadId = 0;
+
+	threads.forEach((thread) => {
+		const topLevel = thread.comments.filter((c) => !c.in_reply_to_id);
+		const allReplies = thread.comments.filter((c) => c.in_reply_to_id);
+
+		// Build reply map
+		const replyMap = new Map<number, PRComment[]>();
+		for (const reply of allReplies) {
+			if (!replyMap.has(reply.in_reply_to_id!)) {
+				replyMap.set(reply.in_reply_to_id!, []);
+			}
+			replyMap.get(reply.in_reply_to_id!)!.push(reply);
+		}
+
+		// Create separate thread for each top-level comment
+		for (const topComment of topLevel) {
+			const threadComments = [topComment];
+
+			// Recursively collect replies
+			const collectReplies = (parentId: number) => {
+				const replies = replyMap.get(parentId) || [];
+				for (const reply of replies) {
+					threadComments.push(reply);
+					collectReplies(reply.id);
+				}
+			};
+			collectReplies(topComment.id);
+
+			// Sort by creation date
+			threadComments.sort(
+				(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+			);
+
+			const key = thread.line * 1000000 + threadId++;
+			finalThreads.set(key, {
+				line: thread.line,
+				comments: threadComments,
+				resolved: false,
+				isFileLevel: thread.isFileLevel,
+			});
+		}
+	});
+
+	return finalThreads;
 }
