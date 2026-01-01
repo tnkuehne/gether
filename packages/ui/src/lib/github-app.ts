@@ -411,3 +411,157 @@ export async function createBranch(
 
 	return branchName;
 }
+
+/**
+ * Pull request review comment
+ */
+export interface PRComment {
+	id: number;
+	pull_request_review_id: number;
+	diff_hunk: string;
+	path: string;
+	position: number | null; // Position in diff (deprecated for multi-line)
+	original_position: number | null;
+	commit_id: string;
+	original_commit_id: string;
+	line: number | null; // Line number in file
+	original_line: number | null;
+	side: "LEFT" | "RIGHT"; // Which side of diff
+	start_line: number | null; // For multi-line comments
+	start_side: "LEFT" | "RIGHT" | null;
+	body: string;
+	user: {
+		login: string;
+		avatar_url: string;
+	};
+	created_at: string;
+	updated_at: string;
+	html_url: string;
+	in_reply_to_id: number | null; // For threaded comments
+	subject_type?: "line" | "file"; // Whether this is a file-level or line-level comment
+}
+
+/**
+ * A thread of comments on a specific line or file
+ */
+export interface PRCommentThread {
+	line: number; // Use 0 for file-level comments
+	comments: PRComment[];
+	resolved: boolean;
+	isFileLevel: boolean; // True if this is a file-level comment thread
+}
+
+/**
+ * Fetch review comments for a specific pull request
+ */
+export async function fetchPRComments(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	prNumber: number,
+): Promise<PRComment[]> {
+	const { data } = await octokit.rest.pulls.listReviewComments({
+		owner: org,
+		repo: repo,
+		pull_number: prNumber,
+		per_page: 100,
+	});
+
+	return data as PRComment[];
+}
+
+/**
+ * Group comments by file path and line number, respecting reply threading
+ * Includes both file-level and line-specific comments
+ */
+export function groupCommentsByLine(
+	comments: PRComment[],
+	filePath: string,
+): Map<number, PRCommentThread> {
+	const threads = new Map<number, PRCommentThread>();
+
+	// Filter comments for this file only
+	const fileComments = comments.filter((c) => c.path === filePath);
+
+	// Simple approach: group all comments by line, then sort them chronologically
+	// This ensures all comments show up even if threading logic has issues
+	for (const comment of fileComments) {
+		const isFileLevel = comment.subject_type === "file";
+
+		// File-level comments use line 0, line-specific use actual line number
+		let line: number;
+		if (isFileLevel) {
+			line = 0; // Special marker for file-level comments
+		} else {
+			const commentLine = comment.line ?? comment.original_line;
+			if (!commentLine) continue;
+			line = commentLine;
+		}
+
+		if (!threads.has(line)) {
+			threads.set(line, {
+				line,
+				comments: [],
+				resolved: false,
+				isFileLevel,
+			});
+		}
+
+		threads.get(line)!.comments.push(comment);
+	}
+
+	// Sort comments within each thread by creation date
+	threads.forEach((thread) => {
+		thread.comments.sort(
+			(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+		);
+	});
+
+	// Now split threads by conversation (separate threads for replies vs separate top-level comments)
+	const finalThreads = new Map<number, PRCommentThread>();
+	let threadId = 0;
+
+	threads.forEach((thread) => {
+		const topLevel = thread.comments.filter((c) => !c.in_reply_to_id);
+		const allReplies = thread.comments.filter((c) => c.in_reply_to_id);
+
+		// Build reply map
+		const replyMap = new Map<number, PRComment[]>();
+		for (const reply of allReplies) {
+			if (!replyMap.has(reply.in_reply_to_id!)) {
+				replyMap.set(reply.in_reply_to_id!, []);
+			}
+			replyMap.get(reply.in_reply_to_id!)!.push(reply);
+		}
+
+		// Create separate thread for each top-level comment
+		for (const topComment of topLevel) {
+			const threadComments = [topComment];
+
+			// Recursively collect replies
+			const collectReplies = (parentId: number) => {
+				const replies = replyMap.get(parentId) || [];
+				for (const reply of replies) {
+					threadComments.push(reply);
+					collectReplies(reply.id);
+				}
+			};
+			collectReplies(topComment.id);
+
+			// Sort by creation date
+			threadComments.sort(
+				(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+			);
+
+			const key = thread.line * 1000000 + threadId++;
+			finalThreads.set(key, {
+				line: thread.line,
+				comments: threadComments,
+				resolved: false,
+				isFileLevel: thread.isFileLevel,
+			});
+		}
+	});
+
+	return finalThreads;
+}

@@ -4,9 +4,9 @@ packages:
 minimumReleaseAge: 1440
 
 minimumReleaseAgeExclude:
-  - '@rollup/*'
+  - "@rollup/*"
   - better-auth@1.4.8-beta.1
-  - '@better-auth/*'
+  - "@better-auth/*"
 
 onlyBuiltDependencies:
   - esbuild

@@ -10,18 +10,18 @@
 	"migrations": [
 		{
 			"new_sqlite_classes": ["CollaborativeDocument"],
-			"tag": "v1"
-		}
+			"tag": "v1",
+		},
 	],
 	"durable_objects": {
 		"bindings": [
 			{
 				"class_name": "CollaborativeDocument",
-				"name": "COLLAB_DOCUMENT"
-			}
-		]
+				"name": "COLLAB_DOCUMENT",
+			},
+		],
 	},
 	"observability": {
-		"enabled": true
-	}
+		"enabled": true,
+	},
 }
