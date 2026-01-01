@@ -30,6 +30,8 @@
 		remoteSelections = [] as RemoteSelection[],
 		prComments = new Map() as Map<number, PRCommentThread>,
 		onCommentClick = undefined as ((thread: PRCommentThread) => void) | undefined,
+		onAddComment = undefined as ((line: number) => void) | undefined,
+		canAddComments = false,
 		readonly = false,
 	}: {
 		value?: string;
@@ -39,6 +41,8 @@
 		remoteSelections?: RemoteSelection[];
 		prComments?: Map<number, PRCommentThread>;
 		onCommentClick?: (thread: PRCommentThread) => void;
+		onAddComment?: (line: number) => void;
+		canAddComments?: boolean;
 		readonly?: boolean;
 	} = $props();
 
@@ -262,6 +266,32 @@
 						lineHeight: "1.5",
 						overflow: "auto",
 					},
+					".cm-gutters": {
+						cursor: canAddComments ? "pointer" : "default",
+					},
+					".cm-lineNumbers .cm-gutterElement:hover": canAddComments
+						? {
+								backgroundColor: "rgba(59, 130, 246, 0.1)",
+							}
+						: {},
+				}),
+				// Handle gutter clicks for adding comments
+				EditorView.domEventHandlers({
+					click: (event, view) => {
+						if (!canAddComments || !onAddComment) return false;
+
+						const target = event.target as HTMLElement;
+						// Check if click is on the line number gutter
+						if (target.closest(".cm-lineNumbers")) {
+							const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+							if (pos !== null) {
+								const line = view.state.doc.lineAt(pos);
+								onAddComment(line.number);
+								return true;
+							}
+						}
+						return false;
+					},
 				}),
 			],
 		});
@@ -323,6 +353,32 @@
 								fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 								lineHeight: "1.5",
 								overflow: "auto",
+							},
+							".cm-gutters": {
+								cursor: canAddComments ? "pointer" : "default",
+							},
+							".cm-lineNumbers .cm-gutterElement:hover": canAddComments
+								? {
+										backgroundColor: "rgba(59, 130, 246, 0.1)",
+									}
+								: {},
+						}),
+						// Handle gutter clicks for adding comments
+						EditorView.domEventHandlers({
+							click: (event, view) => {
+								if (!canAddComments || !onAddComment) return false;
+
+								const target = event.target as HTMLElement;
+								// Check if click is on the line number gutter
+								if (target.closest(".cm-lineNumbers")) {
+									const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+									if (pos !== null) {
+										const line = view.state.doc.lineAt(pos);
+										onAddComment(line.number);
+										return true;
+									}
+								}
+								return false;
 							},
 						}),
 					]),
