@@ -97,9 +97,7 @@
 			// Refresh files list
 			files = await getRepoFiles(page.params.org, page.params.repo, selectedBranch);
 
-			goto(
-				`/${page.params.org}/${page.params.repo}/blob/${encodeURIComponent(selectedBranch)}/${result.path}`,
-			);
+			goto(`/${page.params.org}/${page.params.repo}/blob/${selectedBranch}/${result.path}`);
 		} catch (err) {
 			createError = err instanceof Error ? err.message : "Failed to create file";
 		} finally {
@@ -346,9 +344,7 @@
 								</div>
 							{:else}
 								<a
-									href="/{page.params.org}/{page.params.repo}/blob/{encodeURIComponent(
-										selectedBranch,
-									)}/{item.path}"
+									href="/{page.params.org}/{page.params.repo}/blob/{selectedBranch}/{item.path}"
 									class="flex items-center gap-2 rounded-md py-1.5 transition-colors hover:bg-muted"
 									style="padding-left: {depth * 1.25}rem"
 								>

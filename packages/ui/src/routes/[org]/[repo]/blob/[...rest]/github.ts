@@ -39,6 +39,84 @@ function getPublicOctokit(): Octokit {
 	return new Octokit();
 }
 
+/**
+ * Get list of branches for a repository
+ */
+export async function getRepoBranches(org: string, repo: string): Promise<string[]> {
+	const auth = await getOctokit();
+	const octokit = auth?.octokit ?? getPublicOctokit();
+
+	try {
+		const branches: string[] = [];
+		let page = 1;
+		const perPage = 100;
+
+		// Fetch all branches (paginated)
+		while (true) {
+			const { data } = await octokit.rest.repos.listBranches({
+				owner: org,
+				repo: repo,
+				per_page: perPage,
+				page,
+			});
+
+			branches.push(...data.map((b) => b.name));
+
+			if (data.length < perPage) break;
+			page++;
+		}
+
+		return branches;
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Parse branch and path from a combined path, matching against known branches.
+ * This handles branches with slashes like "user/feature".
+ */
+export function parseBranchAndPath(
+	restPath: string,
+	branches: string[],
+	defaultBranch?: string,
+): { branch: string; path: string } | null {
+	if (!restPath) return null;
+
+	// Sort branches by length descending to match longest first
+	const sortedBranches = [...branches].sort((a, b) => b.length - a.length);
+
+	for (const branch of sortedBranches) {
+		// Check if path starts with this branch name
+		if (restPath === branch) {
+			// Exact match - no file path
+			return { branch, path: "" };
+		}
+		if (restPath.startsWith(branch + "/")) {
+			// Branch followed by path
+			return { branch, path: restPath.slice(branch.length + 1) };
+		}
+	}
+
+	// No branch matched - try using first segment as branch (fallback)
+	const firstSlash = restPath.indexOf("/");
+	if (firstSlash === -1) {
+		// Single segment - assume it's a branch
+		return { branch: restPath, path: "" };
+	}
+
+	// Use default branch if available and path doesn't start with a known branch
+	if (defaultBranch) {
+		return { branch: defaultBranch, path: restPath };
+	}
+
+	// Fallback: first segment is branch, rest is path
+	return {
+		branch: restPath.slice(0, firstSlash),
+		path: restPath.slice(firstSlash + 1),
+	};
+}
+
 export interface FileData {
 	content: string;
 	url: string | null;

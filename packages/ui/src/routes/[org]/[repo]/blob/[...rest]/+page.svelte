@@ -34,6 +34,8 @@
 		doForkRepository,
 		doCreateBranch,
 		doCreatePullRequest,
+		getRepoBranches,
+		parseBranchAndPath,
 		type FileData,
 		type ForkInfo,
 		type PullRequestInfo,
@@ -42,36 +44,74 @@
 
 	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 
-	const { org, repo, branch } = page.params;
-	const path = page.params.path;
+	const { org, repo } = page.params;
+	const rest = page.params.rest;
 
-	// Check if file is markdown
-	const isMarkdown =
-		path!.endsWith(".md") ||
-		path!.endsWith(".markdown") ||
-		path!.endsWith(".mdx") ||
-		path!.endsWith(".svx");
+	// Parse branch and path from the combined rest parameter
+	// We need to fetch branches first to correctly parse branches with slashes
+	let branch = $state<string | undefined>(undefined);
+	let path = $state<string | undefined>(undefined);
+
+	// Initialize by fetching branches and parsing the path
+	const initPromise = (async () => {
+		const [branches, defaultBranchResult] = await Promise.all([
+			getRepoBranches(org!, repo!),
+			getRepoDefaultBranch(org!, repo!),
+		]);
+
+		const parsed = parseBranchAndPath(rest!, branches, defaultBranchResult ?? undefined);
+		if (parsed) {
+			branch = parsed.branch;
+			path = parsed.path;
+		} else {
+			// Fallback: use first segment as branch
+			const firstSlash = rest!.indexOf("/");
+			if (firstSlash === -1) {
+				branch = rest!;
+				path = "";
+			} else {
+				branch = rest!.slice(0, firstSlash);
+				path = rest!.slice(firstSlash + 1);
+			}
+		}
+		return { branch, path, defaultBranch: defaultBranchResult };
+	})();
+
+	// Check if file is markdown (derived from path state)
+	let isMarkdown = $derived(
+		path?.endsWith(".md") ||
+			path?.endsWith(".markdown") ||
+			path?.endsWith(".mdx") ||
+			path?.endsWith(".svx") ||
+			false,
+	);
 	let showPreview = $state(true);
 	let previewMode = $state<"markdown" | "live">("markdown");
 	let mobileView = $state<"code" | "preview">("code");
 
 	const session = authClient.useSession();
 
-	// Fetch data using separate promises
-	const filePromise = getFileContent(org!, repo!, path!, branch!);
+	// Fetch data using promises chained after init
+	const filePromise = initPromise.then(({ branch, path }) =>
+		getFileContent(org!, repo!, path!, branch!),
+	);
 	const canEditPromise = getCanEdit(org!, repo!);
-	const getherConfigPromise = getGetherConfig(org!, repo!, branch!);
+	const getherConfigPromise = initPromise.then(({ branch }) =>
+		getGetherConfig(org!, repo!, branch!),
+	);
 
 	// Contribution workflow data promises
-	const branchProtectedPromise = getIsBranchProtected(org!, repo!, branch!);
-	const defaultBranchPromise = getRepoDefaultBranch(org!, repo!);
+	const branchProtectedPromise = initPromise.then(({ branch }) =>
+		getIsBranchProtected(org!, repo!, branch!),
+	);
+	const defaultBranchPromise = initPromise.then(({ defaultBranch }) => defaultBranch);
 	const currentUserPromise = getCurrentUser();
 	const existingForkPromise = checkUserFork(org!, repo!);
 
 	// Contribution workflow state
 	let currentOrg = $state(org!);
 	let currentRepo = $state(repo!);
-	let currentBranch = $state(branch!);
+	let currentBranch = $state<string>("");
 	let canEdit = $state(false);
 	let isProtected = $state(false);
 	let defaultBranch = $state<string | null>(null);
@@ -79,6 +119,13 @@
 	let existingFork = $state<ForkInfo | null>(null);
 	let existingPR = $state<PullRequestInfo | null>(null);
 	let justCommitted = $state(false);
+
+	// Initialize currentBranch when parsing completes
+	$effect(() => {
+		if (branch) {
+			currentBranch = branch;
+		}
+	});
 
 	// Editor state - initialized when file loads
 	let fileData = $state<FileData | null>(null);
@@ -489,7 +536,7 @@
 	async function handleCreateBranch(branchName: string) {
 		await doCreateBranch(currentOrg, currentRepo, branchName, currentBranch);
 		// Navigate to the new branch (full reload to refresh all data)
-		window.location.href = `/${currentOrg}/${currentRepo}/blob/${encodeURIComponent(branchName)}/${path}`;
+		window.location.href = `/${currentOrg}/${currentRepo}/blob/${branchName}/${path}`;
 	}
 
 	async function handleFork(): Promise<ForkInfo> {

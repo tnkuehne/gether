@@ -115,8 +115,8 @@
 
 		try {
 			const fork = await onFork();
-			// Redirect to the fork (encode branch name to handle slashes)
-			window.location.href = `/${fork.owner}/${fork.repo}/blob/${encodeURIComponent(fork.defaultBranch)}/${path}`;
+			// Redirect to the fork
+			window.location.href = `/${fork.owner}/${fork.repo}/blob/${fork.defaultBranch}/${path}`;
 		} catch (err) {
 			forkError = err instanceof Error ? err.message : "Failed to fork repository";
 			isForkingRepo = false;
@@ -165,9 +165,7 @@
 					<Button
 						size="sm"
 						variant="outline"
-						href="/{existingFork.owner}/{existingFork.repo}/blob/{encodeURIComponent(
-							branch,
-						)}/{path}"
+						href="/{existingFork.owner}/{existingFork.repo}/blob/{branch}/{path}"
 					>
 						<GitFork class="mr-1.5 size-3.5" />
 						Go to your fork
