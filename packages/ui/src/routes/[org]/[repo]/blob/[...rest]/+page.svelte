@@ -12,6 +12,7 @@
 	import { SvelteMap } from "svelte/reactivity";
 	import CodeMirror from "$lib/components/editor/CodeMirror.svelte";
 	import FrontmatterEditor from "$lib/components/editor/FrontmatterEditor.svelte";
+	import ContributionBanner from "$lib/components/contribution/ContributionBanner.svelte";
 	import { Octokit } from "octokit";
 	import { authClient } from "$lib/auth-client";
 	import { commitFile } from "$lib/github-app";
@@ -25,31 +26,107 @@
 		getCanEdit,
 		getHasGitHubApp,
 		getGetherConfig,
+		getIsBranchProtected,
+		getRepoDefaultBranch,
+		getCurrentUser,
+		checkUserFork,
+		checkExistingPR,
+		doForkRepository,
+		doCreateBranch,
+		doCreatePullRequest,
+		getRepoBranches,
+		parseBranchAndPath,
 		type FileData,
+		type ForkInfo,
+		type PullRequestInfo,
 	} from "./github";
 	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
 
 	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 
-	const { org, repo, branch } = page.params;
-	const path = page.params.path;
+	const { org, repo } = page.params;
+	const rest = page.params.rest;
 
-	// Check if file is markdown
-	const isMarkdown =
-		path!.endsWith(".md") ||
-		path!.endsWith(".markdown") ||
-		path!.endsWith(".mdx") ||
-		path!.endsWith(".svx");
+	// Parse branch and path from the combined rest parameter
+	// We need to fetch branches first to correctly parse branches with slashes
+	let branch = $state<string | undefined>(undefined);
+	let path = $state<string | undefined>(undefined);
+
+	// Initialize by fetching branches and parsing the path
+	const initPromise = (async () => {
+		const [branches, defaultBranchResult] = await Promise.all([
+			getRepoBranches(org!, repo!),
+			getRepoDefaultBranch(org!, repo!),
+		]);
+
+		const parsed = parseBranchAndPath(rest!, branches, defaultBranchResult ?? undefined);
+		if (parsed) {
+			branch = parsed.branch;
+			path = parsed.path;
+		} else {
+			// Fallback: use first segment as branch
+			const firstSlash = rest!.indexOf("/");
+			if (firstSlash === -1) {
+				branch = rest!;
+				path = "";
+			} else {
+				branch = rest!.slice(0, firstSlash);
+				path = rest!.slice(firstSlash + 1);
+			}
+		}
+		return { branch, path, defaultBranch: defaultBranchResult };
+	})();
+
+	// Check if file is markdown (derived from path state)
+	let isMarkdown = $derived(
+		path?.endsWith(".md") ||
+			path?.endsWith(".markdown") ||
+			path?.endsWith(".mdx") ||
+			path?.endsWith(".svx") ||
+			false,
+	);
 	let showPreview = $state(true);
 	let previewMode = $state<"markdown" | "live">("markdown");
 	let mobileView = $state<"code" | "preview">("code");
 
 	const session = authClient.useSession();
 
-	// Fetch data using separate promises
-	const filePromise = getFileContent(org!, repo!, path!, branch!);
+	// Fetch data using promises chained after init
+	const filePromise = initPromise.then(({ branch, path }) =>
+		getFileContent(org!, repo!, path!, branch!),
+	);
 	const canEditPromise = getCanEdit(org!, repo!);
-	const getherConfigPromise = getGetherConfig(org!, repo!, branch!);
+	const getherConfigPromise = initPromise.then(({ branch }) =>
+		getGetherConfig(org!, repo!, branch!),
+	);
+
+	// Contribution workflow data promises
+	const branchProtectedPromise = initPromise.then(({ branch }) =>
+		getIsBranchProtected(org!, repo!, branch!),
+	);
+	const defaultBranchPromise = initPromise.then(({ defaultBranch }) => defaultBranch);
+	const currentUserPromise = getCurrentUser();
+	const existingForkPromise = checkUserFork(org!, repo!);
+
+	// Contribution workflow state
+	let currentOrg = $state(org!);
+	let currentRepo = $state(repo!);
+	let currentBranch = $state<string>("");
+	let canEdit = $state(false);
+	let isProtected = $state(false);
+	let defaultBranch = $state<string | null>(null);
+	let currentUser = $state<string | null>(null);
+	let existingFork = $state<ForkInfo | null>(null);
+	let existingPR = $state<PullRequestInfo | null>(null);
+	let justCommitted = $state(false);
+	let contributionDataLoaded = $state(false);
+
+	// Initialize currentBranch when parsing completes
+	$effect(() => {
+		if (branch) {
+			currentBranch = branch;
+		}
+	});
 
 	// Editor state - initialized when file loads
 	let fileData = $state<FileData | null>(null);
@@ -119,6 +196,41 @@
 		// Set editor content based on whether frontmatter exists
 		editorContent = parsed.hasFrontmatter ? parsed.content : result.fileData.content;
 	}
+
+	// Initialize contribution workflow state
+	$effect(() => {
+		if ($session.data) {
+			Promise.all([
+				canEditPromise,
+				branchProtectedPromise,
+				defaultBranchPromise,
+				currentUserPromise,
+				existingForkPromise,
+			]).then(
+				async ([canEditResult, isProtectedResult, defaultBranchResult, userResult, forkResult]) => {
+					canEdit = canEditResult;
+					isProtected = isProtectedResult;
+					defaultBranch = defaultBranchResult;
+					currentUser = userResult;
+					existingFork = forkResult;
+
+					// Check for existing PR if we're not on default branch
+					if (defaultBranchResult && currentBranch !== defaultBranchResult) {
+						const pr = await checkExistingPR(
+							currentOrg,
+							currentRepo,
+							currentBranch,
+							userResult ?? undefined,
+						);
+						existingPR = pr;
+					}
+
+					// Mark contribution data as loaded
+					contributionDataLoaded = true;
+				},
+			);
+		}
+	});
 
 	// Check sandbox status when config loads
 	$effect(() => {
@@ -424,6 +536,43 @@
 		}
 	}
 
+	// Contribution workflow handlers
+	async function handleCreateBranch(branchName: string) {
+		await doCreateBranch(currentOrg, currentRepo, branchName, currentBranch);
+		// Navigate to the new branch (full reload to refresh all data)
+		window.location.href = `/${currentOrg}/${currentRepo}/blob/${branchName}/${path}`;
+	}
+
+	async function handleFork(): Promise<ForkInfo> {
+		const fork = await doForkRepository(org!, repo!);
+		existingFork = fork;
+		return fork;
+	}
+
+	async function handleCreatePR(params: {
+		title: string;
+		body: string;
+		draft: boolean;
+	}): Promise<PullRequestInfo> {
+		if (!defaultBranch) throw new Error("Default branch not found");
+
+		// For cross-repo PRs (forks), we need to include the owner
+		const isFromFork = currentOrg !== org;
+		const head = isFromFork ? `${currentOrg}:${currentBranch}` : currentBranch;
+
+		const pr = await doCreatePullRequest(org!, repo!, {
+			title: params.title,
+			body: params.body || undefined,
+			head,
+			base: defaultBranch,
+			draft: params.draft,
+		});
+
+		existingPR = pr;
+		justCommitted = false;
+		return pr;
+	}
+
 	async function handleCommit() {
 		let accessToken;
 
@@ -446,10 +595,10 @@
 			const octokit = new Octokit({ auth: accessToken });
 			const result = await commitFile(
 				octokit,
-				org!,
-				repo!,
+				currentOrg,
+				currentRepo,
 				path!,
-				branch!,
+				currentBranch,
 				content,
 				commitMessage.trim(),
 				fileData.sha,
@@ -460,6 +609,11 @@
 			originalContent = content;
 			commitMessage = "";
 			commitDialogOpen = false;
+
+			// Track that we just committed for PR prompt
+			if (defaultBranch && currentBranch !== defaultBranch && !existingPR) {
+				justCommitted = true;
+			}
 		} catch (err: unknown) {
 			const error = err as { status?: number; message?: string };
 			if (error.status === 409) {
@@ -618,6 +772,26 @@
 			{/if}
 		{/await}
 	</header>
+
+	<!-- Contribution workflow banners -->
+	{#if $session.data && contributionDataLoaded}
+		<div class="mb-4 space-y-2">
+			<ContributionBanner
+				branch={currentBranch}
+				path={path!}
+				{canEdit}
+				{isProtected}
+				{defaultBranch}
+				{existingFork}
+				{existingPR}
+				{currentUser}
+				{justCommitted}
+				onCreateBranch={handleCreateBranch}
+				onFork={handleFork}
+				onCreatePR={handleCreatePR}
+			/>
+		</div>
+	{/if}
 
 	{#await filePromise}
 		<!-- Loading skeleton for the main card -->

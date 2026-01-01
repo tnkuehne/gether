@@ -6,6 +6,14 @@ import {
 	fetchGetherConfig,
 	commitFile,
 	checkWritePermission,
+	checkBranchProtection,
+	getDefaultBranch,
+	forkRepository,
+	getUserFork,
+	createPullRequest,
+	getExistingPullRequest,
+	getAuthenticatedUser,
+	createBranch,
 } from "../github-app";
 import { Octokit } from "octokit";
 
@@ -369,6 +377,498 @@ describe("github-app", () => {
 			const result = await checkWritePermission(mockOctokit as unknown as Octokit, "org", "repo");
 
 			expect(result).toBe(false);
+		});
+	});
+
+	describe("checkBranchProtection", () => {
+		let mockOctokit: { rest: { repos: { getBranch: ReturnType<typeof vi.fn> } } };
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					repos: {
+						getBranch: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should return true when branch is protected", async () => {
+			mockOctokit.rest.repos.getBranch.mockResolvedValue({
+				data: { protected: true, name: "main" },
+			});
+
+			const result = await checkBranchProtection(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"main",
+			);
+
+			expect(result).toBe(true);
+		});
+
+		it("should return false when branch is not protected", async () => {
+			mockOctokit.rest.repos.getBranch.mockResolvedValue({
+				data: { protected: false, name: "feature" },
+			});
+
+			const result = await checkBranchProtection(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"feature",
+			);
+
+			expect(result).toBe(false);
+		});
+
+		it("should return false when API call fails", async () => {
+			mockOctokit.rest.repos.getBranch.mockRejectedValue(new Error("API Error"));
+
+			const result = await checkBranchProtection(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"unknown",
+			);
+
+			expect(result).toBe(false);
+		});
+	});
+
+	describe("getDefaultBranch", () => {
+		let mockOctokit: { rest: { repos: { get: ReturnType<typeof vi.fn> } } };
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					repos: {
+						get: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should return the default branch name", async () => {
+			mockOctokit.rest.repos.get.mockResolvedValue({
+				data: { default_branch: "main" },
+			});
+
+			const result = await getDefaultBranch(mockOctokit as unknown as Octokit, "org", "repo");
+
+			expect(result).toBe("main");
+		});
+
+		it("should handle repositories with non-main default branch", async () => {
+			mockOctokit.rest.repos.get.mockResolvedValue({
+				data: { default_branch: "master" },
+			});
+
+			const result = await getDefaultBranch(mockOctokit as unknown as Octokit, "org", "repo");
+
+			expect(result).toBe("master");
+		});
+	});
+
+	describe("forkRepository", () => {
+		let mockOctokit: { rest: { repos: { createFork: ReturnType<typeof vi.fn> } } };
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					repos: {
+						createFork: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should fork repository and return fork info", async () => {
+			mockOctokit.rest.repos.createFork.mockResolvedValue({
+				data: {
+					owner: { login: "user" },
+					name: "repo",
+					full_name: "user/repo",
+					html_url: "https://github.com/user/repo",
+					default_branch: "main",
+				},
+			});
+
+			const result = await forkRepository(mockOctokit as unknown as Octokit, "org", "repo");
+
+			expect(result).toEqual({
+				owner: "user",
+				repo: "repo",
+				fullName: "user/repo",
+				htmlUrl: "https://github.com/user/repo",
+				defaultBranch: "main",
+			});
+
+			expect(mockOctokit.rest.repos.createFork).toHaveBeenCalledWith({
+				owner: "org",
+				repo: "repo",
+			});
+		});
+	});
+
+	describe("getUserFork", () => {
+		let mockOctokit: {
+			rest: {
+				users: { getAuthenticated: ReturnType<typeof vi.fn> };
+				repos: { get: ReturnType<typeof vi.fn> };
+			};
+		};
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					users: {
+						getAuthenticated: vi.fn(),
+					},
+					repos: {
+						get: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should return fork info when user has a fork", async () => {
+			mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
+				data: { login: "user" },
+			});
+			mockOctokit.rest.repos.get.mockResolvedValue({
+				data: {
+					fork: true,
+					parent: { full_name: "org/repo" },
+					owner: { login: "user" },
+					name: "repo",
+					full_name: "user/repo",
+					html_url: "https://github.com/user/repo",
+					default_branch: "main",
+				},
+			});
+
+			const result = await getUserFork(mockOctokit as unknown as Octokit, "org", "repo");
+
+			expect(result).toEqual({
+				owner: "user",
+				repo: "repo",
+				fullName: "user/repo",
+				htmlUrl: "https://github.com/user/repo",
+				defaultBranch: "main",
+			});
+		});
+
+		it("should return null when user does not have a fork", async () => {
+			mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
+				data: { login: "user" },
+			});
+			mockOctokit.rest.repos.get.mockRejectedValue(new Error("Not Found"));
+
+			const result = await getUserFork(mockOctokit as unknown as Octokit, "org", "repo");
+
+			expect(result).toBeNull();
+		});
+
+		it("should return null when repo exists but is not a fork", async () => {
+			mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
+				data: { login: "user" },
+			});
+			mockOctokit.rest.repos.get.mockResolvedValue({
+				data: {
+					fork: false,
+					owner: { login: "user" },
+					name: "repo",
+				},
+			});
+
+			const result = await getUserFork(mockOctokit as unknown as Octokit, "org", "repo");
+
+			expect(result).toBeNull();
+		});
+	});
+
+	describe("createPullRequest", () => {
+		let mockOctokit: { rest: { pulls: { create: ReturnType<typeof vi.fn> } } };
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					pulls: {
+						create: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should create a pull request and return PR info", async () => {
+			mockOctokit.rest.pulls.create.mockResolvedValue({
+				data: {
+					number: 123,
+					title: "Add feature",
+					body: "Description",
+					html_url: "https://github.com/org/repo/pull/123",
+					state: "open",
+					draft: false,
+					head: {
+						ref: "feature",
+						repo: { owner: { login: "user" } },
+					},
+					base: {
+						ref: "main",
+						repo: { owner: { login: "org" } },
+					},
+				},
+			});
+
+			const result = await createPullRequest(mockOctokit as unknown as Octokit, "org", "repo", {
+				title: "Add feature",
+				body: "Description",
+				head: "feature",
+				base: "main",
+				draft: false,
+			});
+
+			expect(result).toEqual({
+				number: 123,
+				title: "Add feature",
+				body: "Description",
+				htmlUrl: "https://github.com/org/repo/pull/123",
+				state: "open",
+				draft: false,
+				headRef: "feature",
+				baseRef: "main",
+				headOwner: "user",
+				baseOwner: "org",
+			});
+		});
+
+		it("should create a draft pull request", async () => {
+			mockOctokit.rest.pulls.create.mockResolvedValue({
+				data: {
+					number: 124,
+					title: "WIP: Feature",
+					body: null,
+					html_url: "https://github.com/org/repo/pull/124",
+					state: "open",
+					draft: true,
+					head: {
+						ref: "wip-feature",
+						repo: { owner: { login: "user" } },
+					},
+					base: {
+						ref: "main",
+						repo: { owner: { login: "org" } },
+					},
+				},
+			});
+
+			const result = await createPullRequest(mockOctokit as unknown as Octokit, "org", "repo", {
+				title: "WIP: Feature",
+				head: "wip-feature",
+				base: "main",
+				draft: true,
+			});
+
+			expect(result.draft).toBe(true);
+			expect(mockOctokit.rest.pulls.create).toHaveBeenCalledWith({
+				owner: "org",
+				repo: "repo",
+				title: "WIP: Feature",
+				body: undefined,
+				head: "wip-feature",
+				base: "main",
+				draft: true,
+			});
+		});
+	});
+
+	describe("getExistingPullRequest", () => {
+		let mockOctokit: { rest: { pulls: { list: ReturnType<typeof vi.fn> } } };
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					pulls: {
+						list: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should return existing PR info when PR exists", async () => {
+			mockOctokit.rest.pulls.list.mockResolvedValue({
+				data: [
+					{
+						number: 123,
+						title: "Add feature",
+						body: "Description",
+						html_url: "https://github.com/org/repo/pull/123",
+						state: "open",
+						draft: false,
+						head: {
+							ref: "feature",
+							repo: { owner: { login: "org" } },
+						},
+						base: {
+							ref: "main",
+							repo: { owner: { login: "org" } },
+						},
+					},
+				],
+			});
+
+			const result = await getExistingPullRequest(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"feature",
+			);
+
+			expect(result).toEqual({
+				number: 123,
+				title: "Add feature",
+				body: "Description",
+				htmlUrl: "https://github.com/org/repo/pull/123",
+				state: "open",
+				draft: false,
+				headRef: "feature",
+				baseRef: "main",
+				headOwner: "org",
+				baseOwner: "org",
+			});
+		});
+
+		it("should return null when no PR exists", async () => {
+			mockOctokit.rest.pulls.list.mockResolvedValue({
+				data: [],
+			});
+
+			const result = await getExistingPullRequest(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"feature",
+			);
+
+			expect(result).toBeNull();
+		});
+
+		it("should use org:branch format for same-repo PRs", async () => {
+			mockOctokit.rest.pulls.list.mockResolvedValue({
+				data: [],
+			});
+
+			await getExistingPullRequest(mockOctokit as unknown as Octokit, "org", "repo", "feature");
+
+			expect(mockOctokit.rest.pulls.list).toHaveBeenCalledWith({
+				owner: "org",
+				repo: "repo",
+				head: "org:feature",
+				state: "open",
+				per_page: 1,
+			});
+		});
+
+		it("should handle cross-repo PRs with headOwner", async () => {
+			mockOctokit.rest.pulls.list.mockResolvedValue({
+				data: [],
+			});
+
+			await getExistingPullRequest(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"feature",
+				"user",
+			);
+
+			expect(mockOctokit.rest.pulls.list).toHaveBeenCalledWith({
+				owner: "org",
+				repo: "repo",
+				head: "user:feature",
+				state: "open",
+				per_page: 1,
+			});
+		});
+	});
+
+	describe("getAuthenticatedUser", () => {
+		let mockOctokit: { rest: { users: { getAuthenticated: ReturnType<typeof vi.fn> } } };
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					users: {
+						getAuthenticated: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should return the authenticated user login", async () => {
+			mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
+				data: { login: "testuser" },
+			});
+
+			const result = await getAuthenticatedUser(mockOctokit as unknown as Octokit);
+
+			expect(result).toBe("testuser");
+		});
+	});
+
+	describe("createBranch", () => {
+		let mockOctokit: {
+			rest: {
+				git: {
+					getRef: ReturnType<typeof vi.fn>;
+					createRef: ReturnType<typeof vi.fn>;
+				};
+			};
+		};
+
+		beforeEach(() => {
+			mockOctokit = {
+				rest: {
+					git: {
+						getRef: vi.fn(),
+						createRef: vi.fn(),
+					},
+				},
+			};
+		});
+
+		it("should create a new branch from source branch", async () => {
+			mockOctokit.rest.git.getRef.mockResolvedValue({
+				data: {
+					object: { sha: "abc123" },
+				},
+			});
+			mockOctokit.rest.git.createRef.mockResolvedValue({
+				data: {},
+			});
+
+			const result = await createBranch(
+				mockOctokit as unknown as Octokit,
+				"org",
+				"repo",
+				"new-feature",
+				"main",
+			);
+
+			expect(result).toBe("new-feature");
+			expect(mockOctokit.rest.git.getRef).toHaveBeenCalledWith({
+				owner: "org",
+				repo: "repo",
+				ref: "heads/main",
+			});
+			expect(mockOctokit.rest.git.createRef).toHaveBeenCalledWith({
+				owner: "org",
+				repo: "repo",
+				ref: "refs/heads/new-feature",
+				sha: "abc123",
+			});
 		});
 	});
 });
