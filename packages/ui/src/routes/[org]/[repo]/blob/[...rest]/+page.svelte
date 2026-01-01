@@ -119,6 +119,7 @@
 	let existingFork = $state<ForkInfo | null>(null);
 	let existingPR = $state<PullRequestInfo | null>(null);
 	let justCommitted = $state(false);
+	let contributionDataLoaded = $state(false);
 
 	// Initialize currentBranch when parsing completes
 	$effect(() => {
@@ -223,6 +224,9 @@
 						);
 						existingPR = pr;
 					}
+
+					// Mark contribution data as loaded
+					contributionDataLoaded = true;
 				},
 			);
 		}
@@ -770,7 +774,7 @@
 	</header>
 
 	<!-- Contribution workflow banners -->
-	{#if $session.data}
+	{#if $session.data && contributionDataLoaded}
 		<div class="mb-4 space-y-2">
 			<ContributionBanner
 				branch={currentBranch}
