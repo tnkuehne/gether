@@ -125,6 +125,8 @@
 
 	// PR comments state
 	let prComments = $state<Map<number, PRCommentThread>>(new Map());
+	let selectedThread = $state<PRCommentThread | null>(null);
+	let commentPopoverOpen = $state(false);
 
 	// Initialize currentBranch when parsing completes
 	$effect(() => {
@@ -247,11 +249,9 @@
 	});
 
 	// Comment click handler
-	function handleCommentClick() {
-		// Focus the editor when a comment is clicked
-		if (editorRef) {
-			editorRef.focus();
-		}
+	function handleCommentClick(thread: PRCommentThread) {
+		selectedThread = thread;
+		commentPopoverOpen = true;
 	}
 
 	// Check sandbox status when config loads
@@ -1194,6 +1194,99 @@
 		{/if}
 	{/await}
 </div>
+
+<!-- PR Comment Thread Popover -->
+{#if selectedThread && commentPopoverOpen}
+	<div
+		class="fixed top-20 right-4 z-50 max-h-[calc(100vh-120px)] w-96 overflow-auto rounded-lg border bg-popover text-popover-foreground shadow-md"
+		role="dialog"
+	>
+		<div class="border-b bg-muted/30 px-4 py-2">
+			<div class="flex items-center gap-2 text-sm">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="size-4"
+				>
+					<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+				</svg>
+				<span class="font-medium">
+					{selectedThread.comments.length} comment{selectedThread.comments.length > 1 ? "s" : ""}
+				</span>
+				<span class="ml-auto rounded-md bg-secondary px-2 py-1 text-xs">
+					Line {selectedThread.line}
+				</span>
+				<button
+					onclick={() => {
+						commentPopoverOpen = false;
+						selectedThread = null;
+					}}
+					class="ml-2 rounded-sm opacity-70 hover:opacity-100"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						class="size-4"
+					>
+						<path d="M18 6 6 18"></path>
+						<path d="m6 6 12 12"></path>
+					</svg>
+				</button>
+			</div>
+		</div>
+
+		<div class="divide-y">
+			{#each selectedThread.comments as comment (comment.id)}
+				<div class="p-4">
+					<div class="mb-2 flex items-start gap-3">
+						<img
+							src={comment.user.avatar_url}
+							alt={comment.user.login}
+							class="size-8 rounded-full"
+						/>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-2">
+								<span class="text-sm font-medium">{comment.user.login}</span>
+								<span class="text-xs text-muted-foreground">
+									{new Date(comment.created_at).toLocaleDateString()}
+								</span>
+							</div>
+						</div>
+					</div>
+					<div class="ml-11 text-sm break-words whitespace-pre-wrap">
+						{comment.body}
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<div class="border-t bg-muted/10 px-4 py-2">
+			<a
+				href={selectedThread.comments[0].html_url}
+				target="_blank"
+				rel="noopener noreferrer external"
+				data-sveltekit-reload
+				class="text-xs text-blue-600 hover:underline dark:text-blue-400"
+			>
+				View on GitHub →
+			</a>
+		</div>
+	</div>
+{/if}
 
 <Dialog.Root bind:open={commitDialogOpen}>
 	<Dialog.Content class="sm:max-w-md">
