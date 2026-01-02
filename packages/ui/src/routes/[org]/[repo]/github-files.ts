@@ -9,22 +9,30 @@ export interface TreeItem {
 	path: string;
 }
 
+async function getOctokit(): Promise<Octokit> {
+	try {
+		const { data } = await authClient.getAccessToken({
+			providerId: "github",
+		});
+
+		const accessToken = data?.accessToken;
+
+		if (!accessToken) {
+			return new Octokit();
+		}
+
+		return new Octokit({ auth: accessToken });
+	} catch {
+		return new Octokit();
+	}
+}
+
 export async function getRepoFiles(
 	owner: string,
 	repo: string,
 	branch: string,
 ): Promise<TreeItem[]> {
-	const { data } = await authClient.getAccessToken({
-		providerId: "github",
-	});
-
-	const accessToken = data?.accessToken;
-
-	if (!accessToken) {
-		throw new Error("Failed to get GitHub token");
-	}
-
-	const octokit = new Octokit({ auth: accessToken });
+	const octokit = await getOctokit();
 
 	// Single API call to get entire tree
 	const { data: treeData } = await octokit.rest.git.getTree({

@@ -25,6 +25,9 @@
 	import Plus from "@lucide/svelte/icons/plus";
 	import GitBranch from "@lucide/svelte/icons/git-branch";
 	import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
+	import { authClient } from "$lib/auth-client";
+
+	const session = authClient.useSession();
 
 	let dialogOpen = $state(false);
 	let filePath = $state("");
@@ -137,10 +140,41 @@
 </script>
 
 <div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
-	<h1 class="mb-2 text-2xl font-bold break-all sm:text-3xl">
-		{page.params.org}/{page.params.repo}
-	</h1>
-	<p class="mb-6 text-muted-foreground">Markdown, MDX files</p>
+	<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+		<div>
+			<h1 class="mb-2 text-2xl font-bold break-all sm:text-3xl">
+				{page.params.org}/{page.params.repo}
+			</h1>
+			<p class="text-muted-foreground">Markdown, MDX files</p>
+		</div>
+		<div class="flex shrink-0 items-center gap-2">
+			{#if $session.data}
+				<span class="hidden text-sm text-muted-foreground sm:inline">{$session.data.user.name}</span
+				>
+				<Button
+					onclick={async () => {
+						await authClient.signOut();
+					}}
+					variant="outline"
+					size="sm"
+				>
+					Sign Out
+				</Button>
+			{:else}
+				<Button
+					onclick={async () => {
+						await authClient.signIn.social({
+							provider: "github",
+							callbackURL: window.location.href,
+						});
+					}}
+					size="sm"
+				>
+					Sign in with GitHub
+				</Button>
+			{/if}
+		</div>
+	</div>
 
 	<Card>
 		<CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -234,23 +268,27 @@
 										</button>
 									{/each}
 								</div>
-								<div class="border-t p-1">
-									<button
-										class="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-										onclick={() => (showNewBranchInput = true)}
-									>
-										<GitBranchPlus class="mr-2 size-4" />
-										New branch
-									</button>
-								</div>
+								{#if $session.data}
+									<div class="border-t p-1">
+										<button
+											class="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+											onclick={() => (showNewBranchInput = true)}
+										>
+											<GitBranchPlus class="mr-2 size-4" />
+											New branch
+										</button>
+									</div>
+								{/if}
 							{/if}
 						</Popover.Content>
 					</Popover.Root>
 				{/await}
-				<Button size="sm" onclick={() => openCreateDialog()}>
-					<Plus class="mr-2 size-4" />
-					Add file
-				</Button>
+				{#if $session.data}
+					<Button size="sm" onclick={() => openCreateDialog()}>
+						<Plus class="mr-2 size-4" />
+						Add file
+					</Button>
+				{/if}
 				<Dialog.Root bind:open={dialogOpen}>
 					<Dialog.Content>
 						<Dialog.Header>
@@ -334,13 +372,15 @@
 								>
 									<Folder class="size-4" />
 									<span class="text-sm font-medium">{item.name}</span>
-									<button
-										class="rounded p-1 opacity-100 transition-opacity hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100"
-										onclick={() => openCreateDialog(item.path)}
-										title="Create file in {item.path}"
-									>
-										<Plus class="size-3" />
-									</button>
+									{#if $session.data}
+										<button
+											class="rounded p-1 opacity-100 transition-opacity hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100"
+											onclick={() => openCreateDialog(item.path)}
+											title="Create file in {item.path}"
+										>
+											<Plus class="size-3" />
+										</button>
+									{/if}
 								</div>
 							{:else}
 								<a

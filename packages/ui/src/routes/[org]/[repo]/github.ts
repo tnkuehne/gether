@@ -1,7 +1,25 @@
 import { Octokit } from "octokit";
 import { authClient } from "$lib/auth-client";
 
-async function getOctokit(): Promise<Octokit> {
+async function getOctokit(): Promise<{ octokit: Octokit; isAuthenticated: boolean }> {
+	try {
+		const { data } = await authClient.getAccessToken({
+			providerId: "github",
+		});
+
+		const accessToken = data?.accessToken;
+
+		if (!accessToken) {
+			return { octokit: new Octokit(), isAuthenticated: false };
+		}
+
+		return { octokit: new Octokit({ auth: accessToken }), isAuthenticated: true };
+	} catch {
+		return { octokit: new Octokit(), isAuthenticated: false };
+	}
+}
+
+async function getAuthenticatedOctokit(): Promise<Octokit> {
 	const { data } = await authClient.getAccessToken({
 		providerId: "github",
 	});
@@ -9,14 +27,14 @@ async function getOctokit(): Promise<Octokit> {
 	const accessToken = data?.accessToken;
 
 	if (!accessToken) {
-		throw new Error("Failed to get GitHub token");
+		throw new Error("Not authenticated");
 	}
 
 	return new Octokit({ auth: accessToken });
 }
 
 export async function getDefaultBranch(owner: string, repo: string): Promise<string> {
-	const octokit = await getOctokit();
+	const { octokit } = await getOctokit();
 	const { data: repoData } = await octokit.rest.repos.get({
 		owner,
 		repo,
@@ -26,7 +44,7 @@ export async function getDefaultBranch(owner: string, repo: string): Promise<str
 }
 
 export async function getBranches(owner: string, repo: string): Promise<string[]> {
-	const octokit = await getOctokit();
+	const { octokit } = await getOctokit();
 	const { data: branches } = await octokit.rest.repos.listBranches({
 		owner,
 		repo,
@@ -42,7 +60,7 @@ export async function createBranch(
 	branchName: string,
 	sourceBranch: string,
 ): Promise<string> {
-	const octokit = await getOctokit();
+	const octokit = await getAuthenticatedOctokit();
 
 	// Get the SHA of the source branch
 	const { data: refData } = await octokit.rest.git.getRef({
@@ -70,7 +88,7 @@ export async function createFile(
 	message: string,
 	branch: string,
 ): Promise<{ sha?: string; path?: string }> {
-	const octokit = await getOctokit();
+	const octokit = await getAuthenticatedOctokit();
 
 	const { data: fileData } = await octokit.rest.repos.createOrUpdateFileContents({
 		owner,
