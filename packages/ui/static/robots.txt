@@ -1,4 +1,5 @@
 # only allow indexing the homepage
 User-agent: *
+Allow: /_app/
 Disallow: /dashboard
 Disallow: /*/
