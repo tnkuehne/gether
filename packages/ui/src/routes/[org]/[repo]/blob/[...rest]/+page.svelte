@@ -805,92 +805,7 @@
 	}
 </script>
 
-<div class="mx-auto w-full px-4 py-4 sm:py-6 lg:px-8 lg:py-8">
-	<header class="mb-4 space-y-3 sm:mb-6 lg:mb-8 lg:space-y-4">
-		<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-			<div class="min-w-0">
-				<h1 class="mb-1 truncate text-xl font-bold tracking-tight sm:mb-2 sm:text-2xl lg:text-3xl">
-					<a href="/{org}/{repo}" class="hover:underline">{org}/{repo}</a>
-				</h1>
-			</div>
-
-			<div class="flex shrink-0 items-center gap-2">
-				{#if $session.data}
-					<div class="flex items-center gap-2">
-						<span class="hidden text-sm text-muted-foreground sm:inline"
-							>{$session.data.user.name}</span
-						>
-						<Button
-							onclick={async () => {
-								await authClient.signOut();
-							}}
-							variant="outline"
-							size="sm"
-						>
-							Sign Out
-						</Button>
-					</div>
-				{:else}
-					<Button
-						onclick={async () => {
-							await authClient.signIn.social({
-								provider: "github",
-								callbackURL: window.location.href,
-							});
-						}}
-						size="sm"
-					>
-						Sign in with GitHub
-					</Button>
-				{/if}
-			</div>
-		</div>
-
-		{#await filePromise}
-			<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-				<Skeleton class="h-5 w-16" />
-				<span class="mx-1 sm:mx-2">/</span>
-				<Skeleton class="h-4 w-48" />
-			</div>
-		{:then fileResult}
-			{#if fileResult.fileData}
-				<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-					<span class="min-w-0 font-mono">
-						<Badge
-							variant="secondary"
-							class="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-100"
-						>
-							{branch}
-						</Badge>
-						<span class="mx-1 sm:mx-2">/</span>
-						<span class="break-all text-foreground">{path}</span>
-					</span>
-					<Separator orientation="vertical" class="hidden h-4 sm:block" />
-					{#await canEditPromise}
-						<Skeleton class="h-5 w-20" />
-					{:then canEdit}
-						{#if $session.data && !canEdit}
-							<Badge variant="secondary">Read-only</Badge>
-						{:else if !$session.data}
-							<button
-								onclick={async () => {
-									await authClient.signIn.social({
-										provider: "github",
-										callbackURL: window.location.href,
-									});
-								}}
-								class="cursor-pointer"
-							>
-								<Badge variant="outline" class="hover:bg-muted">Sign in to edit & collaborate</Badge
-								>
-							</button>
-						{/if}
-					{/await}
-				</div>
-			{/if}
-		{/await}
-	</header>
-
+<div class="w-full p-4">
 	<!-- Contribution workflow banners -->
 	{#if $session.data && contributionDataLoaded}
 		<div class="mb-4 space-y-2">
@@ -913,7 +828,7 @@
 
 	{#await filePromise}
 		<!-- Loading skeleton for the main card -->
-		<Card class="-mx-4 gap-0 border-x-0 sm:mx-0 sm:rounded-lg sm:border-x">
+		<Card class="gap-0">
 			<CardHeader
 				class="flex flex-col gap-3 space-y-0 px-4 pb-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4"
 			>
@@ -983,11 +898,18 @@
 				</CardContent>
 			</Card>
 		{:else if fileResult.fileData}
-			<Card class="-mx-4 gap-0 border-x-0 sm:mx-0 sm:rounded-lg sm:border-x">
+			<Card class="gap-0">
 				<CardHeader
 					class="flex flex-col gap-3 space-y-0 px-4 pb-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4"
 				>
 					<div class="flex flex-wrap items-center gap-x-2 gap-y-2">
+						{#await canEditPromise then canEditResult}
+							{#if $session.data && !canEditResult}
+								<Badge variant="secondary">Read-only</Badge>
+							{:else if !$session.data}
+								<Badge variant="outline" class="text-muted-foreground">Sign in to edit</Badge>
+							{/if}
+						{/await}
 						{#if isMarkdown || sandboxStatus === "running"}
 							<!-- Mobile: toggle between code and preview -->
 							<div class="flex items-center rounded-md border sm:hidden">
