@@ -148,7 +148,9 @@
 			<p class="text-muted-foreground">Markdown, MDX files</p>
 		</div>
 		<div class="flex shrink-0 items-center gap-2">
-			{#if $session.data}
+			{#if $session.isPending}
+				<Skeleton class="h-8 w-24" />
+			{:else if $session.data}
 				<span class="hidden text-sm text-muted-foreground sm:inline">{$session.data.user.name}</span
 				>
 				<Button
@@ -396,7 +398,17 @@
 					</div>
 				{/if}
 			{:catch error}
-				{#if !$session.data && error.message?.includes("Not Found")}
+				{#if $session.isPending && error.message?.includes("Not Found")}
+					<!-- Session still loading, show skeleton while we wait -->
+					<div class="space-y-2">
+						{#each Array.from({ length: 4 }, (_, i) => i) as i (i)}
+							<div class="flex items-center gap-3">
+								<Skeleton class="size-4" />
+								<Skeleton class="h-4 w-48 sm:w-64" />
+							</div>
+						{/each}
+					</div>
+				{:else if !$session.data && error.message?.includes("Not Found")}
 					<!-- Private repo - show sign in prompt -->
 					<div class="flex flex-col items-center justify-center py-8 sm:py-12">
 						<div class="flex max-w-md flex-col items-center gap-4 text-center">
