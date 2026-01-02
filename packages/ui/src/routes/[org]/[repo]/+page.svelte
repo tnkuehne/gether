@@ -25,6 +25,9 @@
 	import Plus from "@lucide/svelte/icons/plus";
 	import GitBranch from "@lucide/svelte/icons/git-branch";
 	import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
+	import { authClient } from "$lib/auth-client";
+
+	const session = authClient.useSession();
 
 	let dialogOpen = $state(false);
 	let filePath = $state("");
@@ -137,10 +140,43 @@
 </script>
 
 <div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
-	<h1 class="mb-2 text-2xl font-bold break-all sm:text-3xl">
-		{page.params.org}/{page.params.repo}
-	</h1>
-	<p class="mb-6 text-muted-foreground">Markdown, MDX files</p>
+	<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+		<div>
+			<h1 class="mb-2 text-2xl font-bold break-all sm:text-3xl">
+				{page.params.org}/{page.params.repo}
+			</h1>
+			<p class="text-muted-foreground">Markdown, MDX files</p>
+		</div>
+		<div class="flex shrink-0 items-center gap-2">
+			{#if $session.isPending}
+				<Skeleton class="h-8 w-24" />
+			{:else if $session.data}
+				<span class="hidden text-sm text-muted-foreground sm:inline">{$session.data.user.name}</span
+				>
+				<Button
+					onclick={async () => {
+						await authClient.signOut();
+					}}
+					variant="outline"
+					size="sm"
+				>
+					Sign Out
+				</Button>
+			{:else}
+				<Button
+					onclick={async () => {
+						await authClient.signIn.social({
+							provider: "github",
+							callbackURL: window.location.href,
+						});
+					}}
+					size="sm"
+				>
+					Sign in with GitHub
+				</Button>
+			{/if}
+		</div>
+	</div>
 
 	<Card>
 		<CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -234,23 +270,27 @@
 										</button>
 									{/each}
 								</div>
-								<div class="border-t p-1">
-									<button
-										class="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-										onclick={() => (showNewBranchInput = true)}
-									>
-										<GitBranchPlus class="mr-2 size-4" />
-										New branch
-									</button>
-								</div>
+								{#if $session.data}
+									<div class="border-t p-1">
+										<button
+											class="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+											onclick={() => (showNewBranchInput = true)}
+										>
+											<GitBranchPlus class="mr-2 size-4" />
+											New branch
+										</button>
+									</div>
+								{/if}
 							{/if}
 						</Popover.Content>
 					</Popover.Root>
 				{/await}
-				<Button size="sm" onclick={() => openCreateDialog()}>
-					<Plus class="mr-2 size-4" />
-					Add file
-				</Button>
+				{#if $session.data}
+					<Button size="sm" onclick={() => openCreateDialog()}>
+						<Plus class="mr-2 size-4" />
+						Add file
+					</Button>
+				{/if}
 				<Dialog.Root bind:open={dialogOpen}>
 					<Dialog.Content>
 						<Dialog.Header>
@@ -334,13 +374,15 @@
 								>
 									<Folder class="size-4" />
 									<span class="text-sm font-medium">{item.name}</span>
-									<button
-										class="rounded p-1 opacity-100 transition-opacity hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100"
-										onclick={() => openCreateDialog(item.path)}
-										title="Create file in {item.path}"
-									>
-										<Plus class="size-3" />
-									</button>
+									{#if $session.data}
+										<button
+											class="rounded p-1 opacity-100 transition-opacity hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100"
+											onclick={() => openCreateDialog(item.path)}
+											title="Create file in {item.path}"
+										>
+											<Plus class="size-3" />
+										</button>
+									{/if}
 								</div>
 							{:else}
 								<a
@@ -356,11 +398,48 @@
 					</div>
 				{/if}
 			{:catch error}
-				<Alert variant="destructive">
-					<CircleAlert class="size-4" />
-					<AlertTitle>Error</AlertTitle>
-					<AlertDescription>Failed to load files: {error.message}</AlertDescription>
-				</Alert>
+				{#if $session.isPending && error.message?.includes("Not Found")}
+					<!-- Session still loading, show skeleton while we wait -->
+					<div class="space-y-2">
+						{#each Array.from({ length: 4 }, (_, i) => i) as i (i)}
+							<div class="flex items-center gap-3">
+								<Skeleton class="size-4" />
+								<Skeleton class="h-4 w-48 sm:w-64" />
+							</div>
+						{/each}
+					</div>
+				{:else if !$session.data && error.message?.includes("Not Found")}
+					<!-- Private repo - show sign in prompt -->
+					<div class="flex flex-col items-center justify-center py-8 sm:py-12">
+						<div class="flex max-w-md flex-col items-center gap-4 text-center">
+							<div class="rounded-full bg-muted p-4">
+								<CircleAlert class="size-8 text-muted-foreground" />
+							</div>
+							<div class="space-y-2">
+								<h2 class="text-xl font-semibold">Private Repository</h2>
+								<p class="text-muted-foreground">
+									This repository may be private. Sign in with GitHub to access it.
+								</p>
+							</div>
+							<Button
+								onclick={async () => {
+									await authClient.signIn.social({
+										provider: "github",
+										callbackURL: window.location.href,
+									});
+								}}
+							>
+								Sign in with GitHub
+							</Button>
+						</div>
+					</div>
+				{:else}
+					<Alert variant="destructive">
+						<CircleAlert class="size-4" />
+						<AlertTitle>Error</AlertTitle>
+						<AlertDescription>Failed to load files: {error.message}</AlertDescription>
+					</Alert>
+				{/if}
 			{/await}
 		</CardContent>
 	</Card>
