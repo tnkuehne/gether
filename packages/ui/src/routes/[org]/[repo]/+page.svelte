@@ -396,11 +396,38 @@
 					</div>
 				{/if}
 			{:catch error}
-				<Alert variant="destructive">
-					<CircleAlert class="size-4" />
-					<AlertTitle>Error</AlertTitle>
-					<AlertDescription>Failed to load files: {error.message}</AlertDescription>
-				</Alert>
+				{#if !$session.data && error.message?.includes("Not Found")}
+					<!-- Private repo - show sign in prompt -->
+					<div class="flex flex-col items-center justify-center py-8 sm:py-12">
+						<div class="flex max-w-md flex-col items-center gap-4 text-center">
+							<div class="rounded-full bg-muted p-4">
+								<CircleAlert class="size-8 text-muted-foreground" />
+							</div>
+							<div class="space-y-2">
+								<h2 class="text-xl font-semibold">Private Repository</h2>
+								<p class="text-muted-foreground">
+									This repository may be private. Sign in with GitHub to access it.
+								</p>
+							</div>
+							<Button
+								onclick={async () => {
+									await authClient.signIn.social({
+										provider: "github",
+										callbackURL: window.location.href,
+									});
+								}}
+							>
+								Sign in with GitHub
+							</Button>
+						</div>
+					</div>
+				{:else}
+					<Alert variant="destructive">
+						<CircleAlert class="size-4" />
+						<AlertTitle>Error</AlertTitle>
+						<AlertDescription>Failed to load files: {error.message}</AlertDescription>
+					</Alert>
+				{/if}
 			{/await}
 		</CardContent>
 	</Card>
