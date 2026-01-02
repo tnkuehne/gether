@@ -2,6 +2,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import posthog from "@posthog/rollup-plugin";
 import { defineConfig } from "vite";
+import { faviconPlugin } from "./vite-plugin-favicon";
 
 export default defineConfig({
 	plugins: [
@@ -19,5 +20,6 @@ export default defineConfig({
 			: []),
 		tailwindcss(),
 		sveltekit(),
+		faviconPlugin(),
 	],
 });
