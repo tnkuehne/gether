@@ -20,11 +20,11 @@ A collaborative content editor for markdown or static site generators without lo
 - [x] UI for frontmatter
 - [x] Branching and Forking
 - [x] Opening pull requests
+- [x] Showing and writing comments on pull requests in UI
 
 ## Roadmap
 
 - [ ] wysiwyg editor
-- [ ] Showing and writing comments on pull requests in UI
 - [ ] Media upload
 - [ ] Collections for easier content navigation
 - [ ] Offline Support via CRDTs
