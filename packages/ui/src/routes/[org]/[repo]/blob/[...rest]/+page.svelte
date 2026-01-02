@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from "$app/state";
-	import { Card, CardContent, CardHeader } from "$lib/components/ui/card";
 	import { Badge } from "$lib/components/ui/badge";
 	import { Button, buttonVariants } from "$lib/components/ui/button";
 	import { Separator } from "$lib/components/ui/separator";
@@ -805,10 +804,10 @@
 	}
 </script>
 
-<div class="w-full p-4">
+<div class="flex h-full flex-col">
 	<!-- Contribution workflow banners -->
 	{#if $session.data && contributionDataLoaded}
-		<div class="mb-4 space-y-2">
+		<div class="shrink-0 space-y-2 p-4">
 			<ContributionBanner
 				branch={currentBranch}
 				path={path!}
@@ -827,39 +826,27 @@
 	{/if}
 
 	{#await filePromise}
-		<!-- Loading skeleton for the main card -->
-		<Card class="gap-0">
-			<CardHeader
-				class="flex flex-col gap-3 space-y-0 px-4 pb-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4"
-			>
-				<Skeleton class="h-5 w-32" />
-				<div class="flex items-center gap-2">
-					<Skeleton class="h-8 w-20" />
-					<Skeleton class="h-8 w-16" />
-				</div>
-			</CardHeader>
-			<Separator />
-			<CardContent class="p-0">
-				<div class="p-4">
-					<Skeleton class="mb-2 h-4 w-full" />
-					<Skeleton class="mb-2 h-4 w-full" />
-					<Skeleton class="mb-2 h-4 w-3/4" />
-					<Skeleton class="mb-2 h-4 w-full" />
-					<Skeleton class="mb-2 h-4 w-5/6" />
-					<Skeleton class="mb-2 h-4 w-full" />
-					<Skeleton class="mb-2 h-4 w-2/3" />
-					<Skeleton class="h-4 w-full" />
-				</div>
-			</CardContent>
-		</Card>
+		<!-- Loading skeleton -->
+		<div class="flex shrink-0 items-center gap-2 border-b px-4 py-2">
+			<Skeleton class="h-8 w-20" />
+			<Skeleton class="h-8 w-16" />
+		</div>
+		<div class="flex-1 p-4">
+			<Skeleton class="mb-2 h-4 w-full" />
+			<Skeleton class="mb-2 h-4 w-full" />
+			<Skeleton class="mb-2 h-4 w-3/4" />
+			<Skeleton class="mb-2 h-4 w-full" />
+			<Skeleton class="mb-2 h-4 w-5/6" />
+			<Skeleton class="mb-2 h-4 w-full" />
+			<Skeleton class="mb-2 h-4 w-2/3" />
+			<Skeleton class="h-4 w-full" />
+		</div>
 	{:then fileResult}
 		{#if fileResult.error}
-			<Card class="border-destructive bg-destructive/10">
-				<CardHeader>
+			<div class="p-4">
+				<div class="rounded-lg border border-destructive bg-destructive/10 p-4">
 					<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
-				</CardHeader>
-				<CardContent>
-					<p class="text-destructive">{fileResult.error}</p>
+					<p class="mt-2 text-destructive">{fileResult.error}</p>
 					{#if fileResult.needsGitHubApp}
 						{#await getHasGitHubApp() then hasGitHubApp}
 							<div class="mt-4 space-y-2">
@@ -874,14 +861,12 @@
 								</p>
 								<Button
 									onclick={async () => {
-										// Get OAuth URL with state from Better Auth
 										const response = await authClient.signIn.social({
 											provider: "github",
 											callbackURL: window.location.href,
 											disableRedirect: true,
 										});
 
-										// Extract state parameter from OAuth URL
 										if (response?.data.url) {
 											const oauthUrl = new URL(response.data.url);
 											const state = oauthUrl.searchParams.get("state");
@@ -895,326 +880,317 @@
 							</div>
 						{/await}
 					{/if}
-				</CardContent>
-			</Card>
+				</div>
+			</div>
 		{:else if fileResult.fileData}
-			<Card class="gap-0">
-				<CardHeader
-					class="flex flex-col gap-3 space-y-0 px-4 pb-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:pb-4"
-				>
-					<div class="flex flex-wrap items-center gap-x-2 gap-y-2">
-						{#await canEditPromise then canEditResult}
-							{#if $session.data && !canEditResult}
-								<Badge variant="secondary">Read-only</Badge>
-							{:else if !$session.data}
-								<Badge variant="outline" class="text-muted-foreground">Sign in to edit</Badge>
+			<!-- Toolbar -->
+			<div class="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
+				{#await canEditPromise then canEditResult}
+					{#if $session.data && !canEditResult}
+						<Badge variant="secondary">Read-only</Badge>
+					{:else if !$session.data}
+						<Badge variant="outline" class="text-muted-foreground">Sign in to edit</Badge>
+					{/if}
+				{/await}
+				{#if isMarkdown || sandboxStatus === "running"}
+					<!-- Mobile: toggle between code and preview -->
+					<div class="flex items-center rounded-md border sm:hidden">
+						<Button
+							onclick={() => {
+								mobileView = "code";
+							}}
+							variant={mobileView === "code" ? "secondary" : "ghost"}
+							size="sm"
+							class="rounded-r-none border-0"
+						>
+							Code
+						</Button>
+						<Separator orientation="vertical" class="h-6" />
+						<Button
+							onclick={() => {
+								mobileView = "preview";
+							}}
+							variant={mobileView === "preview" ? "secondary" : "ghost"}
+							size="sm"
+							class="rounded-l-none border-0"
+						>
+							Preview
+						</Button>
+					</div>
+					<!-- Desktop: show/hide preview pane -->
+					<Button
+						onclick={() => {
+							showPreview = !showPreview;
+						}}
+						variant={showPreview ? "secondary" : "ghost"}
+						size="sm"
+						title={showPreview ? "Hide preview" : "Show preview"}
+						class="hidden sm:inline-flex"
+					>
+						{showPreview ? "Hide Preview" : "Show Preview"}
+					</Button>
+				{/if}
+				{#if showPreview && sandboxStatus === "running" && isMarkdown}
+					<div class="flex items-center rounded-md border">
+						<Button
+							onclick={() => {
+								previewMode = "markdown";
+							}}
+							variant={previewMode === "markdown" ? "secondary" : "ghost"}
+							size="sm"
+							class="rounded-r-none border-0"
+						>
+							Markdown
+						</Button>
+						<Separator orientation="vertical" class="h-6" />
+						<Button
+							onclick={() => {
+								previewMode = "live";
+							}}
+							variant={previewMode === "live" ? "secondary" : "ghost"}
+							size="sm"
+							class="rounded-l-none border-0"
+						>
+							Live
+							{#if isSyncing}
+								<span class="ml-1 text-xs text-muted-foreground">...</span>
 							{/if}
-						{/await}
-						{#if isMarkdown || sandboxStatus === "running"}
-							<!-- Mobile: toggle between code and preview -->
-							<div class="flex items-center rounded-md border sm:hidden">
-								<Button
-									onclick={() => {
-										mobileView = "code";
-									}}
-									variant={mobileView === "code" ? "secondary" : "ghost"}
-									size="sm"
-									class="rounded-r-none border-0"
-								>
-									Code
-								</Button>
-								<Separator orientation="vertical" class="h-6" />
-								<Button
-									onclick={() => {
-										mobileView = "preview";
-									}}
-									variant={mobileView === "preview" ? "secondary" : "ghost"}
-									size="sm"
-									class="rounded-l-none border-0"
-								>
-									Preview
-								</Button>
-							</div>
-							<!-- Desktop: show/hide preview pane -->
-							<Button
-								onclick={() => {
-									showPreview = !showPreview;
-								}}
-								variant={showPreview ? "secondary" : "ghost"}
-								size="sm"
-								title={showPreview ? "Hide preview" : "Show preview"}
-								class="hidden sm:inline-flex"
-							>
-								{showPreview ? "Hide Preview" : "Show Preview"}
-							</Button>
-						{/if}
-						{#if showPreview && sandboxStatus === "running" && isMarkdown}
-							<div class="flex items-center rounded-md border">
-								<Button
-									onclick={() => {
-										previewMode = "markdown";
-									}}
-									variant={previewMode === "markdown" ? "secondary" : "ghost"}
-									size="sm"
-									class="rounded-r-none border-0"
-								>
-									Markdown
-								</Button>
-								<Separator orientation="vertical" class="h-6" />
-								<Button
-									onclick={() => {
-										previewMode = "live";
-									}}
-									variant={previewMode === "live" ? "secondary" : "ghost"}
-									size="sm"
-									class="rounded-l-none border-0"
-								>
-									Live
-									{#if isSyncing}
-										<span class="ml-1 text-xs text-muted-foreground">...</span>
-									{/if}
-								</Button>
-							</div>
-						{/if}
-						{#await canEditPromise then canEdit}
-							{#if canEdit}
-								<Button
-									onclick={() => {
-										commitDialogOpen = true;
-									}}
-									disabled={!hasUnsavedChanges}
-									size="sm"
-									title={hasUnsavedChanges ? "Commit changes to GitHub" : "No changes to commit"}
-								>
-									Commit
-								</Button>
-								<Button
-									onclick={handleReset}
-									disabled={!hasUnsavedChanges}
-									variant="ghost"
-									size="sm"
-									title={hasUnsavedChanges
-										? "Reset to original GitHub content"
-										: "No changes to reset"}
-								>
-									Reset
-								</Button>
-							{/if}
-						{/await}
+						</Button>
+					</div>
+				{/if}
+				{#await canEditPromise then canEdit}
+					{#if canEdit}
+						<Button
+							onclick={() => {
+								commitDialogOpen = true;
+							}}
+							disabled={!hasUnsavedChanges}
+							size="sm"
+							title={hasUnsavedChanges ? "Commit changes to GitHub" : "No changes to commit"}
+						>
+							Commit
+						</Button>
+						<Button
+							onclick={handleReset}
+							disabled={!hasUnsavedChanges}
+							variant="ghost"
+							size="sm"
+							title={hasUnsavedChanges ? "Reset to original GitHub content" : "No changes to reset"}
+						>
+							Reset
+						</Button>
+					{/if}
+				{/await}
 
-						{#if $session.data && isLivePreviewEnabled}
-							{#await getherConfigPromise then getherConfig}
-								<Separator orientation="vertical" class="h-6" />
-								{#if !getherConfig}
-									<Tooltip.Root>
-										<Tooltip.Trigger
-											class="{buttonVariants({
-												variant: 'outline',
-												size: 'sm',
-											})} cursor-not-allowed opacity-50"
-										>
-											Live Preview
-										</Tooltip.Trigger>
-										<Tooltip.Content>
-											<p>
-												Add <code class="rounded bg-muted px-1 text-muted-foreground"
-													>gether.jsonc</code
-												> to enable.
-											</p>
-											<a
-												href="https://github.com/tnkuehne/gether#live-preview"
-												target="_blank"
-												rel="noopener noreferrer"
-												class="text-secondary underline"
-											>
-												Learn more
-											</a>
-										</Tooltip.Content>
-									</Tooltip.Root>
-								{:else if sandboxStatus === "idle"}
-									<Button onclick={() => startLivePreview(getherConfig)} variant="outline" size="sm"
-										>Start Live Preview</Button
-									>
-								{:else if sandboxStatus === "starting"}
-									<Button disabled variant="outline" size="sm">Starting sandbox...</Button>
-								{:else if sandboxStatus === "running" && previewUrl}
-									{#if isSyncing && !isMarkdown}
-										<span class="text-xs text-muted-foreground">Syncing...</span>
-									{/if}
+				{#if $session.data && isLivePreviewEnabled}
+					{#await getherConfigPromise then getherConfig}
+						<Separator orientation="vertical" class="h-6" />
+						{#if !getherConfig}
+							<Tooltip.Root>
+								<Tooltip.Trigger
+									class="{buttonVariants({
+										variant: 'outline',
+										size: 'sm',
+									})} cursor-not-allowed opacity-50"
+								>
+									Live Preview
+								</Tooltip.Trigger>
+								<Tooltip.Content>
+									<p>
+										Add <code class="rounded bg-muted px-1 text-muted-foreground">gether.jsonc</code
+										> to enable.
+									</p>
 									<a
-										href={previewUrl}
+										href="https://github.com/tnkuehne/gether#live-preview"
 										target="_blank"
 										rel="noopener noreferrer"
-										class={buttonVariants({ variant: "ghost", size: "sm" })}
-										title="Open live preview in new tab"
+										class="text-secondary underline"
 									>
-										Open Preview
+										Learn more
 									</a>
-								{:else if sandboxStatus === "error"}
-									<Button
-										onclick={() => startLivePreview(getherConfig)}
-										variant="destructive"
-										size="sm"
-										title={sandboxError || "Error"}
-									>
-										Retry Preview
-									</Button>
-								{/if}
-							{/await}
+								</Tooltip.Content>
+							</Tooltip.Root>
+						{:else if sandboxStatus === "idle"}
+							<Button onclick={() => startLivePreview(getherConfig)} variant="outline" size="sm"
+								>Start Live Preview</Button
+							>
+						{:else if sandboxStatus === "starting"}
+							<Button disabled variant="outline" size="sm">Starting sandbox...</Button>
+						{:else if sandboxStatus === "running" && previewUrl}
+							{#if isSyncing && !isMarkdown}
+								<span class="text-xs text-muted-foreground">Syncing...</span>
+							{/if}
+							<a
+								href={previewUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								class={buttonVariants({ variant: "ghost", size: "sm" })}
+								title="Open live preview in new tab"
+							>
+								Open Preview
+							</a>
+						{:else if sandboxStatus === "error"}
+							<Button
+								onclick={() => startLivePreview(getherConfig)}
+								variant="destructive"
+								size="sm"
+								title={sandboxError || "Error"}
+							>
+								Retry Preview
+							</Button>
 						{/if}
-					</div>
-				</CardHeader>
+					{/await}
+				{/if}
+			</div>
 
-				<Separator />
-
-				<CardContent class="p-0">
-					{#if showPreview && (isMarkdown || sandboxStatus === "running")}
-						<!-- Desktop: side-by-side resizable panes -->
-						<div class="hidden sm:block">
-							<ResizablePaneGroup direction="horizontal" class="min-h-125">
-								<ResizablePane defaultSize={50} minSize={30}>
-									<div class="flex h-full flex-col">
-										{#await canEditPromise then canEdit}
-											{#if hasFrontmatter}
-												<FrontmatterEditor
-													bind:fields={frontmatterFields}
-													readonly={!$session.data || !canEdit}
-													onchange={handleFrontmatterChange}
-												/>
-											{/if}
-											<div class="flex-1">
-												<CodeMirror
-													bind:this={editorRef}
-													bind:value={editorContent}
-													onchange={(newValue) => {
-														handleEditorContentChange(newValue);
-														handleEditorChange(
-															hasFrontmatter
-																? combineDocument(frontmatterFields, newValue)
-																: newValue,
-														);
-													}}
-													oncursorchange={handleCursorChange}
-													remoteCursors={Array.from(remoteCursors.values())}
-													remoteSelections={Array.from(remoteSelections.values())}
-													{prComments}
-													onCommentClick={handleCommentClick}
-													onselectionchange={handleSelectionChange}
-													canAddComments={!!existingPR && !!$session.data}
-													readonly={!$session.data || !canEdit}
-												/>
-											</div>
-										{/await}
-									</div>
-								</ResizablePane>
-								<ResizableHandle withHandle />
-								<ResizablePane defaultSize={50} minSize={30}>
-									{#if previewMode === "live" && sandboxStatus === "running" && previewUrl}
-										<iframe
-											src={previewUrl}
-											title="Live Preview"
-											class="h-full w-full border-0"
-											sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-										></iframe>
-									{:else if isMarkdown}
-										<div class="h-full overflow-auto bg-background p-6">
-											<Streamdown
-												content={hasFrontmatter ? bodyContent : content}
-												baseTheme="shadcn"
+			<!-- Editor content -->
+			<div class="min-h-0 flex-1">
+				{#if showPreview && (isMarkdown || sandboxStatus === "running")}
+					<!-- Desktop: side-by-side resizable panes -->
+					<div class="hidden h-full sm:block">
+						<ResizablePaneGroup direction="horizontal" class="h-full">
+							<ResizablePane defaultSize={50} minSize={30}>
+								<div class="flex h-full flex-col">
+									{#await canEditPromise then canEdit}
+										{#if hasFrontmatter}
+											<FrontmatterEditor
+												bind:fields={frontmatterFields}
+												readonly={!$session.data || !canEdit}
+												onchange={handleFrontmatterChange}
+											/>
+										{/if}
+										<div class="flex-1">
+											<CodeMirror
+												bind:this={editorRef}
+												bind:value={editorContent}
+												onchange={(newValue) => {
+													handleEditorContentChange(newValue);
+													handleEditorChange(
+														hasFrontmatter
+															? combineDocument(frontmatterFields, newValue)
+															: newValue,
+													);
+												}}
+												oncursorchange={handleCursorChange}
+												remoteCursors={Array.from(remoteCursors.values())}
+												remoteSelections={Array.from(remoteSelections.values())}
+												{prComments}
+												onCommentClick={handleCommentClick}
+												onselectionchange={handleSelectionChange}
+												canAddComments={!!existingPR && !!$session.data}
+												readonly={!$session.data || !canEdit}
 											/>
 										</div>
-									{:else if sandboxStatus === "running" && previewUrl}
-										<iframe
-											src={previewUrl}
-											title="Live Preview"
-											class="h-full w-full border-0"
-											sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-										></iframe>
-									{/if}
-								</ResizablePane>
-							</ResizablePaneGroup>
-						</div>
-						<!-- Mobile: toggle between code and preview -->
-						<div class="sm:hidden">
-							{#if mobileView === "code"}
-								{#await canEditPromise then canEdit}
-									{#if hasFrontmatter}
-										<FrontmatterEditor
-											bind:fields={frontmatterFields}
-											readonly={!$session.data || !canEdit}
-											onchange={handleFrontmatterChange}
-										/>
-									{/if}
-									<CodeMirror
-										bind:this={editorRef}
-										bind:value={editorContent}
-										onchange={(newValue) => {
-											handleEditorContentChange(newValue);
-											handleEditorChange(
-												hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
-											);
-										}}
-										oncursorchange={handleCursorChange}
-										remoteCursors={Array.from(remoteCursors.values())}
-										remoteSelections={Array.from(remoteSelections.values())}
-										{prComments}
-										onCommentClick={handleCommentClick}
-										onselectionchange={handleSelectionChange}
-										canAddComments={!!existingPR && !!$session.data}
-										readonly={!$session.data || !canEdit}
-									/>
-								{/await}
-							{:else if previewMode === "live" && sandboxStatus === "running" && previewUrl}
-								<iframe
-									src={previewUrl}
-									title="Live Preview"
-									class="min-h-[50vh] w-full border-0"
-									sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-								></iframe>
-							{:else if isMarkdown}
-								<div class="min-h-[50vh] overflow-auto bg-background p-4">
-									<Streamdown content={hasFrontmatter ? bodyContent : content} baseTheme="shadcn" />
+									{/await}
 								</div>
-							{:else if sandboxStatus === "running" && previewUrl}
-								<iframe
-									src={previewUrl}
-									title="Live Preview"
-									class="min-h-[50vh] w-full border-0"
-									sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-								></iframe>
-							{/if}
-						</div>
-					{:else}
-						{#await canEditPromise then canEdit}
-							{#if hasFrontmatter}
-								<FrontmatterEditor
-									bind:fields={frontmatterFields}
+							</ResizablePane>
+							<ResizableHandle withHandle />
+							<ResizablePane defaultSize={50} minSize={30}>
+								{#if previewMode === "live" && sandboxStatus === "running" && previewUrl}
+									<iframe
+										src={previewUrl}
+										title="Live Preview"
+										class="h-full w-full border-0"
+										sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+									></iframe>
+								{:else if isMarkdown}
+									<div class="h-full overflow-auto bg-background p-6">
+										<Streamdown
+											content={hasFrontmatter ? bodyContent : content}
+											baseTheme="shadcn"
+										/>
+									</div>
+								{:else if sandboxStatus === "running" && previewUrl}
+									<iframe
+										src={previewUrl}
+										title="Live Preview"
+										class="h-full w-full border-0"
+										sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+									></iframe>
+								{/if}
+							</ResizablePane>
+						</ResizablePaneGroup>
+					</div>
+					<!-- Mobile: toggle between code and preview -->
+					<div class="sm:hidden">
+						{#if mobileView === "code"}
+							{#await canEditPromise then canEdit}
+								{#if hasFrontmatter}
+									<FrontmatterEditor
+										bind:fields={frontmatterFields}
+										readonly={!$session.data || !canEdit}
+										onchange={handleFrontmatterChange}
+									/>
+								{/if}
+								<CodeMirror
+									bind:this={editorRef}
+									bind:value={editorContent}
+									onchange={(newValue) => {
+										handleEditorContentChange(newValue);
+										handleEditorChange(
+											hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
+										);
+									}}
+									oncursorchange={handleCursorChange}
+									remoteCursors={Array.from(remoteCursors.values())}
+									remoteSelections={Array.from(remoteSelections.values())}
+									{prComments}
+									onCommentClick={handleCommentClick}
+									onselectionchange={handleSelectionChange}
+									canAddComments={!!existingPR && !!$session.data}
 									readonly={!$session.data || !canEdit}
-									onchange={handleFrontmatterChange}
 								/>
-							{/if}
-							<CodeMirror
-								bind:this={editorRef}
-								bind:value={editorContent}
-								onchange={(newValue) => {
-									handleEditorContentChange(newValue);
-									handleEditorChange(
-										hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
-									);
-								}}
-								oncursorchange={handleCursorChange}
-								remoteCursors={Array.from(remoteCursors.values())}
-								remoteSelections={Array.from(remoteSelections.values())}
-								{prComments}
-								onCommentClick={handleCommentClick}
-								onselectionchange={handleSelectionChange}
-								canAddComments={!!existingPR && !!$session.data}
+							{/await}
+						{:else if previewMode === "live" && sandboxStatus === "running" && previewUrl}
+							<iframe
+								src={previewUrl}
+								title="Live Preview"
+								class="min-h-[50vh] w-full border-0"
+								sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+							></iframe>
+						{:else if isMarkdown}
+							<div class="min-h-[50vh] overflow-auto bg-background p-4">
+								<Streamdown content={hasFrontmatter ? bodyContent : content} baseTheme="shadcn" />
+							</div>
+						{:else if sandboxStatus === "running" && previewUrl}
+							<iframe
+								src={previewUrl}
+								title="Live Preview"
+								class="min-h-[50vh] w-full border-0"
+								sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+							></iframe>
+						{/if}
+					</div>
+				{:else}
+					{#await canEditPromise then canEdit}
+						{#if hasFrontmatter}
+							<FrontmatterEditor
+								bind:fields={frontmatterFields}
 								readonly={!$session.data || !canEdit}
+								onchange={handleFrontmatterChange}
 							/>
-						{/await}
-					{/if}
-				</CardContent>
-			</Card>
+						{/if}
+						<CodeMirror
+							bind:this={editorRef}
+							bind:value={editorContent}
+							onchange={(newValue) => {
+								handleEditorContentChange(newValue);
+								handleEditorChange(
+									hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
+								);
+							}}
+							oncursorchange={handleCursorChange}
+							remoteCursors={Array.from(remoteCursors.values())}
+							remoteSelections={Array.from(remoteSelections.values())}
+							{prComments}
+							onCommentClick={handleCommentClick}
+							onselectionchange={handleSelectionChange}
+							canAddComments={!!existingPR && !!$session.data}
+							readonly={!$session.data || !canEdit}
+						/>
+					{/await}
+				{/if}
+			</div>
 		{/if}
 	{/await}
 </div>
