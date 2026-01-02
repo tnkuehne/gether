@@ -293,6 +293,7 @@ export interface PullRequestInfo {
 	baseRef: string;
 	headOwner: string;
 	baseOwner: string;
+	headSha: string; // Commit SHA of the PR head (needed for creating comments)
 }
 
 /**
@@ -331,6 +332,7 @@ export async function createPullRequest(
 		baseRef: data.base.ref,
 		headOwner: data.head.repo?.owner.login ?? org,
 		baseOwner: data.base.repo?.owner.login ?? org,
+		headSha: data.head.sha,
 	};
 }
 
@@ -370,6 +372,7 @@ export async function getExistingPullRequest(
 			baseRef: pr.base.ref,
 			headOwner: pr.head.repo?.owner.login ?? org,
 			baseOwner: pr.base.repo?.owner.login ?? org,
+			headSha: pr.head.sha,
 		};
 	} catch {
 		return null;
@@ -468,6 +471,58 @@ export async function fetchPRComments(
 	});
 
 	return data as PRComment[];
+}
+
+/**
+ * Create a new review comment on a pull request
+ */
+export async function createPRComment(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	prNumber: number,
+	params: {
+		body: string;
+		path: string;
+		line: number;
+		commitId: string;
+		side?: "LEFT" | "RIGHT";
+	},
+): Promise<PRComment> {
+	const { data } = await octokit.rest.pulls.createReviewComment({
+		owner: org,
+		repo: repo,
+		pull_number: prNumber,
+		body: params.body,
+		path: params.path,
+		line: params.line,
+		commit_id: params.commitId,
+		side: params.side ?? "RIGHT",
+	});
+
+	return data as PRComment;
+}
+
+/**
+ * Reply to an existing review comment on a pull request
+ */
+export async function replyToPRComment(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	prNumber: number,
+	commentId: number,
+	body: string,
+): Promise<PRComment> {
+	const { data } = await octokit.rest.pulls.createReplyForReviewComment({
+		owner: org,
+		repo: repo,
+		pull_number: prNumber,
+		comment_id: commentId,
+		body: body,
+	});
+
+	return data as PRComment;
 }
 
 /**

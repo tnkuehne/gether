@@ -15,6 +15,8 @@ import {
 	createBranch,
 	fetchPRComments,
 	groupCommentsByLine,
+	createPRComment,
+	replyToPRComment,
 	type ForkInfo,
 	type PullRequestInfo,
 	type PRComment,
@@ -366,6 +368,43 @@ export async function getPRCommentsForFile(
 ): Promise<Map<number, PRCommentThread>> {
 	const comments = await getPRComments(org, repo, prNumber);
 	return groupCommentsByLine(comments, filePath);
+}
+
+/**
+ * Create a new comment on a PR
+ */
+export async function doCreatePRComment(
+	org: string,
+	repo: string,
+	prNumber: number,
+	params: {
+		body: string;
+		path: string;
+		line: number;
+		commitId: string;
+		side?: "LEFT" | "RIGHT";
+	},
+): Promise<PRComment> {
+	const auth = await getOctokit();
+	if (!auth) throw new Error("Not authenticated");
+
+	return await createPRComment(auth.octokit, org, repo, prNumber, params);
+}
+
+/**
+ * Reply to an existing PR comment
+ */
+export async function doReplyToPRComment(
+	org: string,
+	repo: string,
+	prNumber: number,
+	commentId: number,
+	body: string,
+): Promise<PRComment> {
+	const auth = await getOctokit();
+	if (!auth) throw new Error("Not authenticated");
+
+	return await replyToPRComment(auth.octokit, org, repo, prNumber, commentId, body);
 }
 
 export type { ForkInfo, PullRequestInfo, PRComment, PRCommentThread };

@@ -8,9 +8,10 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import * as Field from "$lib/components/ui/field";
 	import { Input } from "$lib/components/ui/input";
+	import { Textarea } from "$lib/components/ui/textarea";
 	import { onDestroy } from "svelte";
 	import { SvelteMap } from "svelte/reactivity";
-	import CodeMirror from "$lib/components/editor/CodeMirror.svelte";
+	import CodeMirror, { type SelectionInfo } from "$lib/components/editor/CodeMirror.svelte";
 	import FrontmatterEditor from "$lib/components/editor/FrontmatterEditor.svelte";
 	import ContributionBanner from "$lib/components/contribution/ContributionBanner.svelte";
 	import { Octokit } from "octokit";
@@ -37,6 +38,8 @@
 		getRepoBranches,
 		parseBranchAndPath,
 		getPRCommentsForFile,
+		doCreatePRComment,
+		doReplyToPRComment,
 		type FileData,
 		type ForkInfo,
 		type PullRequestInfo,
@@ -127,6 +130,17 @@
 	let prComments = $state<Map<number, PRCommentThread>>(new Map());
 	let selectedThread = $state<PRCommentThread | null>(null);
 	let commentPopoverOpen = $state(false);
+
+	// New comment state
+	let replyText = $state("");
+	let isSubmittingComment = $state(false);
+	let commentError = $state<string | null>(null);
+	let newCommentLine = $state<number | null>(null);
+	let newCommentText = $state("");
+	let isCreatingNewComment = $state(false);
+
+	// Selection-based comment trigger
+	let currentSelection = $state<SelectionInfo | null>(null);
 
 	// Initialize currentBranch when parsing completes
 	$effect(() => {
@@ -252,6 +266,88 @@
 	function handleCommentClick(thread: PRCommentThread) {
 		selectedThread = thread;
 		commentPopoverOpen = true;
+		// Reset new comment state when viewing a thread
+		newCommentLine = null;
+		newCommentText = "";
+	}
+
+	// Reply to an existing comment thread
+	async function handleReplyToComment(): Promise<void> {
+		if (!replyText.trim() || !existingPR || !selectedThread || isSubmittingComment) return;
+
+		isSubmittingComment = true;
+		commentError = null;
+
+		try {
+			const firstComment = selectedThread.comments[0];
+			const newComment = await doReplyToPRComment(
+				org!,
+				repo!,
+				existingPR.number,
+				firstComment.id,
+				replyText.trim(),
+			);
+
+			// Add the new comment to the thread
+			selectedThread.comments = [...selectedThread.comments, newComment];
+			replyText = "";
+
+			// Refresh comments to update the map
+			const comments = await getPRCommentsForFile(org!, repo!, existingPR.number, path!);
+			prComments = comments;
+		} catch (err: unknown) {
+			const error = err as { message?: string };
+			commentError = error.message || "Failed to post reply";
+		} finally {
+			isSubmittingComment = false;
+		}
+	}
+
+	// Create a new comment on a specific line
+	async function handleCreateNewComment(): Promise<void> {
+		if (!newCommentText.trim() || !existingPR || newCommentLine === null || isCreatingNewComment)
+			return;
+
+		isCreatingNewComment = true;
+		commentError = null;
+
+		try {
+			await doCreatePRComment(org!, repo!, existingPR.number, {
+				body: newCommentText.trim(),
+				path: path!,
+				line: newCommentLine,
+				commitId: existingPR.headSha,
+			});
+
+			newCommentText = "";
+			newCommentLine = null;
+
+			// Refresh comments
+			const comments = await getPRCommentsForFile(org!, repo!, existingPR.number, path!);
+			prComments = comments;
+		} catch (err: unknown) {
+			const error = err as { message?: string };
+			commentError = error.message || "Failed to create comment";
+		} finally {
+			isCreatingNewComment = false;
+		}
+	}
+
+	// Handle selection change for floating comment button
+	function handleSelectionChange(selection: SelectionInfo | null) {
+		currentSelection = selection;
+	}
+
+	// Open new comment dialog from floating button
+	function handleAddCommentFromSelection() {
+		if (!currentSelection) return;
+		newCommentLine = currentSelection.line;
+		newCommentText = "";
+		commentError = null;
+		currentSelection = null;
+		// Close any existing thread view
+		selectedThread = null;
+		commentPopoverOpen = false;
 	}
 
 	// Check sandbox status when config loads
@@ -1081,6 +1177,8 @@
 													remoteSelections={Array.from(remoteSelections.values())}
 													{prComments}
 													onCommentClick={handleCommentClick}
+													onselectionchange={handleSelectionChange}
+													canAddComments={!!existingPR && !!$session.data}
 													readonly={!$session.data || !canEdit}
 												/>
 											</div>
@@ -1139,6 +1237,8 @@
 										remoteSelections={Array.from(remoteSelections.values())}
 										{prComments}
 										onCommentClick={handleCommentClick}
+										onselectionchange={handleSelectionChange}
+										canAddComments={!!existingPR && !!$session.data}
 										readonly={!$session.data || !canEdit}
 									/>
 								{/await}
@@ -1185,6 +1285,8 @@
 								remoteSelections={Array.from(remoteSelections.values())}
 								{prComments}
 								onCommentClick={handleCommentClick}
+								onselectionchange={handleSelectionChange}
+								canAddComments={!!existingPR && !!$session.data}
 								readonly={!$session.data || !canEdit}
 							/>
 						{/await}
@@ -1229,6 +1331,7 @@
 						selectedThread = null;
 					}}
 					class="ml-2 rounded-sm opacity-70 hover:opacity-100"
+					aria-label="Close comment thread"
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -1274,16 +1377,161 @@
 			{/each}
 		</div>
 
-		<div class="border-t bg-muted/10 px-4 py-2">
-			<a
-				href={selectedThread.comments[0].html_url}
-				target="_blank"
-				rel="noopener noreferrer external"
-				data-sveltekit-reload
-				class="text-xs text-blue-600 hover:underline dark:text-blue-400"
-			>
-				View on GitHub →
-			</a>
+		{#if $session.data && existingPR}
+			<div class="border-t bg-muted/10 p-3">
+				<Textarea
+					bind:value={replyText}
+					placeholder="Write a reply..."
+					class="min-h-[60px] resize-none text-sm"
+					onkeydown={(e) => {
+						if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+							e.preventDefault();
+							handleReplyToComment();
+						}
+					}}
+				/>
+				{#if commentError}
+					<p class="mt-1 text-xs text-destructive">{commentError}</p>
+				{/if}
+				<div class="mt-2 flex items-center justify-between">
+					<a
+						href={selectedThread.comments[0].html_url}
+						target="_blank"
+						rel="noopener noreferrer external"
+						data-sveltekit-reload
+						class="text-xs text-blue-600 hover:underline dark:text-blue-400"
+					>
+						View on GitHub →
+					</a>
+					<Button
+						onclick={handleReplyToComment}
+						disabled={!replyText.trim() || isSubmittingComment}
+						size="sm"
+					>
+						{isSubmittingComment ? "Sending..." : "Reply"}
+					</Button>
+				</div>
+			</div>
+		{:else}
+			<div class="border-t bg-muted/10 px-4 py-2">
+				<a
+					href={selectedThread.comments[0].html_url}
+					target="_blank"
+					rel="noopener noreferrer external"
+					data-sveltekit-reload
+					class="text-xs text-blue-600 hover:underline dark:text-blue-400"
+				>
+					View on GitHub →
+				</a>
+			</div>
+		{/if}
+	</div>
+{/if}
+
+<!-- Floating Add Comment Button -->
+{#if currentSelection && existingPR && $session.data}
+	<button
+		onclick={handleAddCommentFromSelection}
+		class="fixed z-50 flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
+		style="top: {currentSelection.coords.bottom + 8}px; left: {currentSelection.coords.left}px;"
+		aria-label="Add comment on line {currentSelection.line}"
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			width="14"
+			height="14"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+		</svg>
+		Comment
+	</button>
+{/if}
+
+<!-- New Comment Dialog -->
+{#if newCommentLine !== null && existingPR && $session.data}
+	<div
+		class="fixed top-20 right-4 z-50 w-96 rounded-lg border bg-popover text-popover-foreground shadow-md"
+		role="dialog"
+	>
+		<div class="border-b bg-muted/30 px-4 py-2">
+			<div class="flex items-center gap-2 text-sm">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="size-4"
+				>
+					<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+				</svg>
+				<span class="font-medium">New Comment</span>
+				<span class="ml-auto rounded-md bg-secondary px-2 py-1 text-xs">
+					Line {newCommentLine}
+				</span>
+				<button
+					onclick={() => {
+						newCommentLine = null;
+						newCommentText = "";
+						commentError = null;
+					}}
+					class="ml-2 rounded-sm opacity-70 hover:opacity-100"
+					aria-label="Close new comment dialog"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						class="size-4"
+					>
+						<path d="M18 6 6 18"></path>
+						<path d="m6 6 12 12"></path>
+					</svg>
+				</button>
+			</div>
+		</div>
+
+		<div class="p-3">
+			<Textarea
+				bind:value={newCommentText}
+				placeholder="Write a comment..."
+				class="min-h-[100px] resize-none text-sm"
+				onkeydown={(e) => {
+					if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+						e.preventDefault();
+						handleCreateNewComment();
+					}
+				}}
+			/>
+			{#if commentError}
+				<p class="mt-1 text-xs text-destructive">{commentError}</p>
+			{/if}
+			<div class="mt-2 flex items-center justify-between">
+				<span class="text-xs text-muted-foreground">Ctrl+Enter to submit</span>
+				<Button
+					onclick={handleCreateNewComment}
+					disabled={!newCommentText.trim() || isCreatingNewComment}
+					size="sm"
+				>
+					{isCreatingNewComment ? "Posting..." : "Add Comment"}
+				</Button>
+			</div>
 		</div>
 	</div>
 {/if}

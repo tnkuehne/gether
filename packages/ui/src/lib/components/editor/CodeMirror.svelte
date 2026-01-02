@@ -20,25 +20,36 @@
 		userName?: string;
 	}
 
+	export interface SelectionInfo {
+		from: number;
+		to: number;
+		line: number;
+		coords: { top: number; left: number; bottom: number };
+	}
+
 	let {
 		value = $bindable(""),
 		onchange = undefined as ((value: string) => void) | undefined,
 		oncursorchange = undefined as
 			| ((position: number, selection?: { from: number; to: number }) => void)
 			| undefined,
+		onselectionchange = undefined as ((selection: SelectionInfo | null) => void) | undefined,
 		remoteCursors = [] as RemoteCursor[],
 		remoteSelections = [] as RemoteSelection[],
 		prComments = new Map() as Map<number, PRCommentThread>,
 		onCommentClick = undefined as ((thread: PRCommentThread) => void) | undefined,
+		canAddComments = false,
 		readonly = false,
 	}: {
 		value?: string;
 		onchange?: (value: string) => void;
 		oncursorchange?: (position: number, selection?: { from: number; to: number }) => void;
+		onselectionchange?: (selection: SelectionInfo | null) => void;
 		remoteCursors?: RemoteCursor[];
 		remoteSelections?: RemoteSelection[];
 		prComments?: Map<number, PRCommentThread>;
 		onCommentClick?: (thread: PRCommentThread) => void;
+		canAddComments?: boolean;
 		readonly?: boolean;
 	} = $props();
 
@@ -224,6 +235,28 @@
 		provide: (f) => EditorView.decorations.from(f),
 	});
 
+	// Helper to get selection info with coordinates
+	function getSelectionInfo(view: EditorView): SelectionInfo | null {
+		const selection = view.state.selection.main;
+		if (selection.from === selection.to) return null;
+
+		const line = view.state.doc.lineAt(selection.to);
+		const coords = view.coordsAtPos(selection.to);
+
+		if (!coords) return null;
+
+		return {
+			from: selection.from,
+			to: selection.to,
+			line: line.number,
+			coords: {
+				top: coords.top,
+				left: coords.left,
+				bottom: coords.bottom,
+			},
+		};
+	}
+
 	function initializeEditor(container: HTMLDivElement) {
 		const state = EditorState.create({
 			doc: "",
@@ -251,6 +284,11 @@
 								: undefined;
 						// Access current callback from props
 						oncursorchange?.(cursorPos, selectionRange);
+
+						// Send selection info for comment button positioning
+						if (canAddComments && onselectionchange) {
+							onselectionchange(getSelectionInfo(update.view));
+						}
 					}
 				}),
 				EditorView.theme({
@@ -312,6 +350,11 @@
 										? { from: selection.from, to: selection.to }
 										: undefined;
 								oncursorchange?.(cursorPos, selectionRange);
+
+								// Send selection info for comment button positioning
+								if (canAddComments && onselectionchange) {
+									onselectionchange(getSelectionInfo(update.view));
+								}
 							}
 						}),
 						EditorView.editable.of(!readonly),
