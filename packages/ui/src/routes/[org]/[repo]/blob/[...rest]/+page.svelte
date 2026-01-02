@@ -11,7 +11,7 @@
 	import { Textarea } from "$lib/components/ui/textarea";
 	import { onDestroy } from "svelte";
 	import { SvelteMap } from "svelte/reactivity";
-	import CodeMirror from "$lib/components/editor/CodeMirror.svelte";
+	import CodeMirror, { type SelectionInfo } from "$lib/components/editor/CodeMirror.svelte";
 	import FrontmatterEditor from "$lib/components/editor/FrontmatterEditor.svelte";
 	import ContributionBanner from "$lib/components/contribution/ContributionBanner.svelte";
 	import { Octokit } from "octokit";
@@ -138,6 +138,9 @@
 	let newCommentLine = $state<number | null>(null);
 	let newCommentText = $state("");
 	let isCreatingNewComment = $state(false);
+
+	// Selection-based comment trigger
+	let currentSelection = $state<SelectionInfo | null>(null);
 
 	// Initialize currentBranch when parsing completes
 	$effect(() => {
@@ -330,11 +333,18 @@
 		}
 	}
 
-	// Handle line click to add a new comment
-	function handleAddCommentOnLine(line: number) {
-		newCommentLine = line;
+	// Handle selection change for floating comment button
+	function handleSelectionChange(selection: SelectionInfo | null) {
+		currentSelection = selection;
+	}
+
+	// Open new comment dialog from floating button
+	function handleAddCommentFromSelection() {
+		if (!currentSelection) return;
+		newCommentLine = currentSelection.line;
 		newCommentText = "";
 		commentError = null;
+		currentSelection = null;
 		// Close any existing thread view
 		selectedThread = null;
 		commentPopoverOpen = false;
@@ -1167,7 +1177,7 @@
 													remoteSelections={Array.from(remoteSelections.values())}
 													{prComments}
 													onCommentClick={handleCommentClick}
-													onAddComment={handleAddCommentOnLine}
+													onselectionchange={handleSelectionChange}
 													canAddComments={!!existingPR && !!$session.data}
 													readonly={!$session.data || !canEdit}
 												/>
@@ -1227,7 +1237,7 @@
 										remoteSelections={Array.from(remoteSelections.values())}
 										{prComments}
 										onCommentClick={handleCommentClick}
-										onAddComment={handleAddCommentOnLine}
+										onselectionchange={handleSelectionChange}
 										canAddComments={!!existingPR && !!$session.data}
 										readonly={!$session.data || !canEdit}
 									/>
@@ -1275,7 +1285,7 @@
 								remoteSelections={Array.from(remoteSelections.values())}
 								{prComments}
 								onCommentClick={handleCommentClick}
-								onAddComment={handleAddCommentOnLine}
+								onselectionchange={handleSelectionChange}
 								canAddComments={!!existingPR && !!$session.data}
 								readonly={!$session.data || !canEdit}
 							/>
@@ -1416,6 +1426,31 @@
 			</div>
 		{/if}
 	</div>
+{/if}
+
+<!-- Floating Add Comment Button -->
+{#if currentSelection && existingPR && $session.data}
+	<button
+		onclick={handleAddCommentFromSelection}
+		class="fixed z-50 flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-lg transition-all hover:bg-primary/90"
+		style="top: {currentSelection.coords.bottom + 8}px; left: {currentSelection.coords.left}px;"
+		aria-label="Add comment on line {currentSelection.line}"
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			width="14"
+			height="14"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+		</svg>
+		Comment
+	</button>
 {/if}
 
 <!-- New Comment Dialog -->
