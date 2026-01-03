@@ -155,7 +155,7 @@
 	}
 </script>
 
-<Sidebar.Provider>
+<Sidebar.Provider class="h-svh overflow-hidden">
 	<Sidebar.Root variant="inset" collapsible="offcanvas">
 		<Sidebar.Header>
 			<a href="/" class="flex items-center gap-2 px-2 py-1">
@@ -311,7 +311,7 @@
 		</Sidebar.Footer>
 	</Sidebar.Root>
 
-	<Sidebar.Inset class="flex max-h-svh flex-col overflow-x-hidden overscroll-none">
+	<Sidebar.Inset class="overflow-hidden">
 		<!-- Header with sidebar trigger, branch and file path -->
 		<header class="flex h-12 shrink-0 items-center gap-2 border-b px-4">
 			<Sidebar.Trigger class="-ml-1" />
@@ -331,7 +331,7 @@
 		</header>
 
 		<!-- Main content -->
-		<div class="min-h-0 flex-1">
+		<div class="min-h-0 flex-1 overflow-hidden">
 			{@render children()}
 		</div>
 	</Sidebar.Inset>
