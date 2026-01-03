@@ -7,6 +7,7 @@
 	import * as Sidebar from "$lib/components/ui/sidebar";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
+	import ContributionSidebar from "$lib/components/contribution/ContributionSidebar.svelte";
 	import HeartHandshake from "@lucide/svelte/icons/heart-handshake";
 	import Search from "@lucide/svelte/icons/search";
 	import FileText from "@lucide/svelte/icons/file-text";
@@ -286,6 +287,8 @@
 					</Sidebar.Menu>
 				</Sidebar.GroupContent>
 			</Sidebar.Group>
+			<!-- Contribution workflow -->
+			<ContributionSidebar />
 		</Sidebar.Content>
 
 		<Sidebar.Footer>
