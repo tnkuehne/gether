@@ -12,7 +12,10 @@
 	import { SvelteMap } from "svelte/reactivity";
 	import CodeMirror, { type SelectionInfo } from "$lib/components/editor/CodeMirror.svelte";
 	import FrontmatterEditor from "$lib/components/editor/FrontmatterEditor.svelte";
-	import ContributionBanner from "$lib/components/contribution/ContributionBanner.svelte";
+	import {
+		updateContributionState,
+		resetContributionState,
+	} from "$lib/components/contribution/contribution-state.svelte";
 	import { Octokit } from "octokit";
 	import { authClient } from "$lib/auth-client";
 	import { commitFile } from "$lib/github-app";
@@ -140,6 +143,69 @@
 	let existingPR = $state<PullRequestInfo | null>(null);
 	let justCommitted = $state(false);
 	let contributionDataLoaded = $state(false);
+
+	// Contribution workflow handlers (defined early for context setup)
+	async function handleCreateBranch(branchName: string) {
+		await doCreateBranch(currentOrg, currentRepo, branchName, currentBranch);
+		// Navigate to the new branch (full reload to refresh all data)
+		window.location.href = `/${currentOrg}/${currentRepo}/blob/${branchName}/${path}`;
+	}
+
+	async function handleFork(): Promise<ForkInfo> {
+		const fork = await doForkRepository(org!, repo!);
+		existingFork = fork;
+		return fork;
+	}
+
+	async function handleCreatePR(params: {
+		title: string;
+		body: string;
+		draft: boolean;
+	}): Promise<PullRequestInfo> {
+		if (!defaultBranch) throw new Error("Default branch not found");
+
+		// For cross-repo PRs (forks), we need to include the owner
+		const isFromFork = currentOrg !== org;
+		const head = isFromFork ? `${currentOrg}:${currentBranch}` : currentBranch;
+
+		const pr = await doCreatePullRequest(org!, repo!, {
+			title: params.title,
+			body: params.body || undefined,
+			head,
+			base: defaultBranch,
+			draft: params.draft,
+		});
+
+		existingPR = pr;
+		justCommitted = false;
+		return pr;
+	}
+
+	// Update contribution state whenever relevant values change
+	$effect(() => {
+		updateContributionState({
+			org: currentOrg,
+			repo: currentRepo,
+			branch: currentBranch,
+			path: path ?? "",
+			canEdit,
+			isProtected,
+			defaultBranch,
+			currentUser,
+			existingFork,
+			existingPR,
+			justCommitted,
+			isLoaded: contributionDataLoaded,
+			onCreateBranch: handleCreateBranch,
+			onFork: handleFork,
+			onCreatePR: handleCreatePR,
+		});
+	});
+
+	// Reset contribution state on component destroy
+	onDestroy(() => {
+		resetContributionState();
+	});
 
 	// PR comments state
 	let prComments = $state<Map<number, PRCommentThread>>(new Map());
@@ -758,43 +824,6 @@
 		}
 	}
 
-	// Contribution workflow handlers
-	async function handleCreateBranch(branchName: string) {
-		await doCreateBranch(currentOrg, currentRepo, branchName, currentBranch);
-		// Navigate to the new branch (full reload to refresh all data)
-		window.location.href = `/${currentOrg}/${currentRepo}/blob/${branchName}/${path}`;
-	}
-
-	async function handleFork(): Promise<ForkInfo> {
-		const fork = await doForkRepository(org!, repo!);
-		existingFork = fork;
-		return fork;
-	}
-
-	async function handleCreatePR(params: {
-		title: string;
-		body: string;
-		draft: boolean;
-	}): Promise<PullRequestInfo> {
-		if (!defaultBranch) throw new Error("Default branch not found");
-
-		// For cross-repo PRs (forks), we need to include the owner
-		const isFromFork = currentOrg !== org;
-		const head = isFromFork ? `${currentOrg}:${currentBranch}` : currentBranch;
-
-		const pr = await doCreatePullRequest(org!, repo!, {
-			title: params.title,
-			body: params.body || undefined,
-			head,
-			base: defaultBranch,
-			draft: params.draft,
-		});
-
-		existingPR = pr;
-		justCommitted = false;
-		return pr;
-	}
-
 	async function handleCommit() {
 		let accessToken;
 
@@ -910,26 +939,6 @@
 </script>
 
 <div class="flex h-full flex-col overflow-hidden">
-	<!-- Contribution workflow banners -->
-	{#if $session.data && contributionDataLoaded}
-		<div class="shrink-0 space-y-2 p-4">
-			<ContributionBanner
-				branch={currentBranch}
-				path={path!}
-				{canEdit}
-				{isProtected}
-				{defaultBranch}
-				{existingFork}
-				{existingPR}
-				{currentUser}
-				{justCommitted}
-				onCreateBranch={handleCreateBranch}
-				onFork={handleFork}
-				onCreatePR={handleCreatePR}
-			/>
-		</div>
-	{/if}
-
 	{#await filePromise}
 		<!-- Loading skeleton -->
 		<div class="flex shrink-0 items-center gap-2 border-b px-4 py-2">
