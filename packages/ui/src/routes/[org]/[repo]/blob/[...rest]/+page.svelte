@@ -47,6 +47,7 @@
 	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
 
 	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
+	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 
 	// Use derived values for reactive route parameters
 	let org = $derived(page.params.org);
@@ -947,45 +948,73 @@
 		</div>
 	{:then fileResult}
 		{#if fileResult.error}
-			<div class="p-4">
-				<div class="rounded-lg border border-destructive bg-destructive/10 p-4">
-					<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
-					<p class="mt-2 text-destructive">{fileResult.error}</p>
-					{#if fileResult.needsGitHubApp}
-						{#await getHasGitHubApp() then hasGitHubApp}
-							<div class="mt-4 space-y-2">
-								<p class="text-sm text-muted-foreground">
-									{#if hasGitHubApp}
-										The GitHub App is installed but doesn't have access to this repository. Click
-										below to add this repository to your installation.
-									{:else}
-										Install our GitHub App to access private repositories with fine-grained
-										permissions. You can select which specific repositories to grant access to.
-									{/if}
-								</p>
-								<Button
-									onclick={async () => {
-										const response = await authClient.signIn.social({
-											provider: "github",
-											callbackURL: window.location.href,
-											disableRedirect: true,
-										});
-
-										if (response?.data.url) {
-											const oauthUrl = new URL(response.data.url);
-											const state = oauthUrl.searchParams.get("state");
-
-											window.location.href = `${GITHUB_APP_INSTALL_URL}?state=${state}`;
-										}
-									}}
-								>
-									{hasGitHubApp ? "Configure GitHub App" : "Install GitHub App"}
-								</Button>
-							</div>
-						{/await}
-					{/if}
+			{#if !$session.data && fileResult.error.toLowerCase().includes("not found")}
+				<!-- Private repo - show sign in prompt for unauthenticated users -->
+				<div class="flex flex-col items-center justify-center py-8 sm:py-12">
+					<div class="flex max-w-md flex-col items-center gap-4 text-center">
+						<div class="rounded-full bg-muted p-4">
+							<CircleAlert class="size-8 text-muted-foreground" />
+						</div>
+						<div class="space-y-2">
+							<h2 class="text-xl font-semibold">Private Repository</h2>
+							<p class="text-muted-foreground">
+								This repository may be private. Sign in with GitHub to access it.
+							</p>
+						</div>
+						<Button
+							onclick={async () => {
+								await authClient.signIn.social({
+									provider: "github",
+									callbackURL: window.location.href,
+								});
+							}}
+						>
+							Sign in with GitHub
+						</Button>
+					</div>
 				</div>
-			</div>
+			{:else}
+				<!-- Show error message for authenticated users or other errors -->
+				<div class="p-4">
+					<div class="rounded-lg border border-destructive bg-destructive/10 p-4">
+						<h2 class="text-xl font-semibold text-destructive">Failed to load file</h2>
+						<p class="mt-2 text-destructive">{fileResult.error}</p>
+						{#if fileResult.needsGitHubApp}
+							{#await getHasGitHubApp() then hasGitHubApp}
+								<div class="mt-4 space-y-2">
+									<p class="text-sm text-muted-foreground">
+										{#if hasGitHubApp}
+											The GitHub App is installed but doesn't have access to this repository. Click
+											below to add this repository to your installation.
+										{:else}
+											Install our GitHub App to access private repositories with fine-grained
+											permissions. You can select which specific repositories to grant access to.
+										{/if}
+									</p>
+									<Button
+										onclick={async () => {
+											const response = await authClient.signIn.social({
+												provider: "github",
+												callbackURL: window.location.href,
+												disableRedirect: true,
+											});
+
+											if (response?.data.url) {
+												const oauthUrl = new URL(response.data.url);
+												const state = oauthUrl.searchParams.get("state");
+
+												window.location.href = `${GITHUB_APP_INSTALL_URL}?state=${state}`;
+											}
+										}}
+									>
+										{hasGitHubApp ? "Configure GitHub App" : "Install GitHub App"}
+									</Button>
+								</div>
+							{/await}
+						{/if}
+					</div>
+				</div>
+			{/if}
 		{:else if fileResult.fileData}
 			<!-- Toolbar -->
 			<div class="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
