@@ -23,7 +23,8 @@
 
 	const org = page.params.org!;
 	const repo = page.params.repo!;
-	const rest = page.params.rest!;
+	// Use $derived for rest so currentPath updates when navigating between files
+	let rest = $derived(page.params.rest!);
 	const session = authClient.useSession();
 
 	// State for file tree
