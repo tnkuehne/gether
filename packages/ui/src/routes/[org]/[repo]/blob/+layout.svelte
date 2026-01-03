@@ -69,13 +69,46 @@
 		return defaultBranch;
 	});
 
-	// Filter files based on search query
+	// Filter files based on search query, including ancestor directories
 	let filteredFiles = $derived.by(() => {
 		if (!searchQuery.trim()) return files;
 		const query = searchQuery.toLowerCase();
-		return files.filter(
-			(item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query),
+
+		// First find all matching files
+		const matchingFiles = files.filter(
+			(item) =>
+				item.type === "file" &&
+				(item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query)),
 		);
+
+		// Collect all ancestor directory paths for matching files
+		const requiredDirs = new SvelteSet<string>();
+		for (const file of matchingFiles) {
+			const parts = file.path.split("/");
+			for (let i = 1; i < parts.length; i++) {
+				requiredDirs.add(parts.slice(0, i).join("/"));
+			}
+		}
+
+		// Return matching files plus their ancestor directories
+		return files.filter(
+			(item) =>
+				(item.type === "file" &&
+					(item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query))) ||
+				(item.type === "dir" && requiredDirs.has(item.path)),
+		);
+	});
+
+	// Auto-expand directories when searching
+	$effect(() => {
+		if (searchQuery.trim()) {
+			// Expand all directories that are in the filtered results
+			for (const item of filteredFiles) {
+				if (item.type === "dir") {
+					expandedDirs.add(item.path);
+				}
+			}
+		}
 	});
 
 	// Build a tree structure from flat files
@@ -122,7 +155,7 @@
 </script>
 
 <Sidebar.Provider>
-	<Sidebar.Root variant="inset" collapsible="icon">
+	<Sidebar.Root variant="inset" collapsible="offcanvas">
 		<Sidebar.Header>
 			<a href="/" class="flex items-center gap-2 px-2 py-1">
 				<div
@@ -130,13 +163,13 @@
 				>
 					<HeartHandshake class="size-5" />
 				</div>
-				<span class="text-lg font-semibold group-data-[collapsible=icon]:hidden">Gether</span>
+				<span class="text-lg font-semibold">Gether</span>
 			</a>
 		</Sidebar.Header>
 
 		<Sidebar.Content>
 			<!-- Search -->
-			<Sidebar.Group class="group-data-[collapsible=icon]:hidden">
+			<Sidebar.Group>
 				<Sidebar.GroupContent>
 					<div class="relative px-2">
 						<Search class="absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -149,7 +182,7 @@
 			<Sidebar.Group class="flex-1">
 				<Sidebar.GroupLabel class="flex items-center gap-2">
 					<Github class="size-4" />
-					<span class="truncate group-data-[collapsible=icon]:hidden">{org}/{repo}</span>
+					<span class="truncate">{org}/{repo}</span>
 				</Sidebar.GroupLabel>
 				<Sidebar.GroupContent>
 					<Sidebar.Menu>
@@ -160,11 +193,7 @@
 								</Sidebar.MenuItem>
 							{/each}
 						{:else if files.length === 0}
-							<div
-								class="px-4 py-2 text-sm text-muted-foreground group-data-[collapsible=icon]:hidden"
-							>
-								No markdown files found
-							</div>
+							<div class="px-4 py-2 text-sm text-muted-foreground">No markdown files found</div>
 						{:else}
 							{#snippet renderItems(parentPath: string)}
 								{#each fileTree.get(parentPath) ?? [] as item (item.path)}
@@ -174,10 +203,7 @@
 
 									{#if isDir}
 										<Sidebar.MenuItem>
-											<Sidebar.MenuButton
-												onclick={() => toggleDir(item.path)}
-												tooltipContent={item.name}
-											>
+											<Sidebar.MenuButton onclick={() => toggleDir(item.path)}>
 												{#if isExpanded}
 													<FolderOpen class="size-4 text-muted-foreground" />
 												{:else}
@@ -242,10 +268,7 @@
 										</Sidebar.MenuItem>
 									{:else}
 										<Sidebar.MenuItem>
-											<Sidebar.MenuButton
-												isActive={isFileActive(item.path)}
-												tooltipContent={item.name}
-											>
+											<Sidebar.MenuButton isActive={isFileActive(item.path)}>
 												{#snippet child({ props })}
 													<a href="/{org}/{repo}/blob/{selectedBranch}/{item.path}" {...props}>
 														<FileText class="size-4 text-muted-foreground" />
@@ -270,42 +293,44 @@
 					{#if $session.isPending}
 						<Sidebar.MenuSkeleton showIcon />
 					{:else if $session.data}
-						<Sidebar.MenuButton onclick={handleSignOut} tooltipContent="Sign out">
+						<Sidebar.MenuButton onclick={handleSignOut}>
 							<LogOut class="size-4" />
-							<span class="truncate group-data-[collapsible=icon]:hidden">
+							<span class="truncate">
 								{$session.data.user.name ?? "Sign out"}
 							</span>
 						</Sidebar.MenuButton>
 					{:else}
-						<Sidebar.MenuButton onclick={handleSignIn} tooltipContent="Sign in with GitHub">
+						<Sidebar.MenuButton onclick={handleSignIn}>
 							<LogIn class="size-4" />
-							<span class="group-data-[collapsible=icon]:hidden">Sign in with GitHub</span>
+							<span>Sign in with GitHub</span>
 						</Sidebar.MenuButton>
 					{/if}
 				</Sidebar.MenuItem>
 			</Sidebar.Menu>
 		</Sidebar.Footer>
-
-		<Sidebar.Rail />
 	</Sidebar.Root>
 
-	<Sidebar.Inset class="flex h-svh flex-col">
-		<!-- Header with sidebar trigger and branch -->
-		<header class="flex h-12 shrink-0 items-center gap-2 px-4">
+	<Sidebar.Inset class="flex max-h-svh flex-col overflow-hidden">
+		<!-- Header with sidebar trigger, branch and file path -->
+		<header class="flex h-12 shrink-0 items-center gap-2 border-b px-4">
 			<Sidebar.Trigger class="-ml-1" />
-			<Separator orientation="vertical" class="mr-2 h-4" />
+			<Separator orientation="vertical" class="h-4" />
 			{#await initPromise}
 				<Skeleton class="h-5 w-24" />
 			{:then}
-				<div class="flex items-center gap-2 text-sm text-muted-foreground">
-					<GitBranch class="size-4" />
-					<span class="truncate">{selectedBranch}</span>
+				<div class="flex min-w-0 items-center gap-2 text-sm">
+					<GitBranch class="size-4 shrink-0 text-muted-foreground" />
+					<span class="shrink-0 text-muted-foreground">{selectedBranch}</span>
+					{#if currentPath}
+						<span class="text-muted-foreground">/</span>
+						<span class="truncate">{currentPath}</span>
+					{/if}
 				</div>
 			{/await}
 		</header>
 
 		<!-- Main content -->
-		<div class="min-h-0 flex-1">
+		<div class="min-h-0 flex-1 overflow-hidden">
 			{@render children()}
 		</div>
 	</Sidebar.Inset>
