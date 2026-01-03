@@ -48,13 +48,23 @@
 
 	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 
-	const { org, repo } = page.params;
-	const rest = page.params.rest;
+	// Use derived values for reactive route parameters
+	let org = $derived(page.params.org);
+	let repo = $derived(page.params.repo);
+	let rest = $derived(page.params.rest);
 
 	// Parse branch and path from the combined rest parameter
 	// We need to fetch branches first to correctly parse branches with slashes
 	let branch = $state<string | undefined>(undefined);
 	let path = $state<string | undefined>(undefined);
+
+	// Cache branches and default branch to avoid refetching on every file switch
+	let cachedBranches = $state<string[]>([]);
+	let cachedDefaultBranch = $state<string | null>(null);
+	let branchesLoaded = $state(false);
+
+	// Track the current rest value to detect changes
+	let lastRest = $state<string | undefined>(undefined);
 
 	// Initialize by fetching branches and parsing the path
 	const initPromise = (async () => {
@@ -62,6 +72,10 @@
 			getRepoBranches(org!, repo!),
 			getRepoDefaultBranch(org!, repo!),
 		]);
+
+		cachedBranches = branches;
+		cachedDefaultBranch = defaultBranchResult;
+		branchesLoaded = true;
 
 		const parsed = parseBranchAndPath(rest!, branches, defaultBranchResult ?? undefined);
 		if (parsed) {
@@ -78,6 +92,7 @@
 				path = rest!.slice(firstSlash + 1);
 			}
 		}
+		lastRest = rest;
 		return { branch, path, defaultBranch: defaultBranchResult };
 	})();
 
@@ -155,6 +170,7 @@
 	let ws = $state<WebSocket | null>(null);
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state("");
+	let hasStartedEditing = $state(false);
 
 	// Frontmatter state
 	let frontmatterFields = $state<FrontmatterField[]>([]);
@@ -216,6 +232,96 @@
 		// Set editor content based on whether frontmatter exists
 		editorContent = parsed.hasFrontmatter ? parsed.content : result.fileData.content;
 	}
+
+	// Watch for URL changes (file switching via sidebar) and refetch file content
+	$effect(() => {
+		// Access rest to create a dependency on it
+		const currentRest = rest;
+
+		// Skip if this is the initial load (lastRest not set yet) or no change
+		if (!branchesLoaded || !currentRest || currentRest === lastRest) {
+			return;
+		}
+
+		// Re-parse branch and path from the new rest value
+		const parsed = parseBranchAndPath(
+			currentRest,
+			cachedBranches,
+			cachedDefaultBranch ?? undefined,
+		);
+		let newBranch: string;
+		let newPath: string;
+
+		if (parsed) {
+			newBranch = parsed.branch;
+			newPath = parsed.path;
+		} else {
+			// Fallback: use first segment as branch
+			const firstSlash = currentRest.indexOf("/");
+			if (firstSlash === -1) {
+				newBranch = currentRest;
+				newPath = "";
+			} else {
+				newBranch = currentRest.slice(0, firstSlash);
+				newPath = currentRest.slice(firstSlash + 1);
+			}
+		}
+
+		// Update state
+		branch = newBranch;
+		path = newPath;
+		lastRest = currentRest;
+
+		// Close existing WebSocket connection before switching files
+		if (ws) {
+			ws.onclose = null; // Prevent reconnect logic
+			ws.close();
+			ws = null;
+		}
+
+		// Clear remote cursors/selections from previous file
+		remoteCursors.clear();
+		remoteSelections.clear();
+
+		// Reset comment state
+		selectedThread = null;
+		commentPopoverOpen = false;
+		prComments = new Map();
+		newCommentLine = null;
+		newCommentText = "";
+
+		// Reset editing tracking
+		hasStartedEditing = false;
+
+		// Fetch new file content
+		getFileContent(org!, repo!, newPath, newBranch).then((fileResult) => {
+			if (fileResult.fileData) {
+				fileData = fileResult.fileData;
+				content = fileResult.fileData.content;
+				originalContent = fileResult.fileData.content;
+				lastValue = fileResult.fileData.content;
+
+				// Parse frontmatter if present
+				const parsedFm = parseFrontmatter(fileResult.fileData.content);
+				hasFrontmatter = parsedFm.hasFrontmatter;
+				frontmatterFields = parsedFm.frontmatter;
+				bodyContent = parsedFm.content;
+				editorContent = parsedFm.hasFrontmatter ? parsedFm.content : fileResult.fileData.content;
+
+				// Reconnect WebSocket for new file (will happen via the session effect)
+			} else if (fileResult.error) {
+				// Handle error - reset file data
+				fileData = null;
+				content = "";
+				originalContent = "";
+				lastValue = "";
+				hasFrontmatter = false;
+				frontmatterFields = [];
+				bodyContent = "";
+				editorContent = "";
+			}
+		});
+	});
 
 	// Initialize contribution workflow state
 	$effect(() => {
@@ -507,8 +613,6 @@
 			console.error("WebSocket error:", error);
 		};
 	}
-
-	let hasStartedEditing = $state(false);
 
 	function handleEditorChange(newValue: string) {
 		if (isRemoteUpdate || !ws || ws.readyState !== WebSocket.OPEN) {
