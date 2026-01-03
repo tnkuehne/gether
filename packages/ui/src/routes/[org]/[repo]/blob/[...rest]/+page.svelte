@@ -804,7 +804,7 @@
 	}
 </script>
 
-<div class="flex h-full flex-col">
+<div class="flex h-full flex-col overflow-hidden">
 	<!-- Contribution workflow banners -->
 	{#if $session.data && contributionDataLoaded}
 		<div class="shrink-0 space-y-2 p-4">
@@ -1044,13 +1044,13 @@
 			</div>
 
 			<!-- Editor content -->
-			<div class="min-h-0 flex-1">
+			<div class="min-h-0 flex-1 overflow-hidden">
 				{#if showPreview && (isMarkdown || sandboxStatus === "running")}
 					<!-- Desktop: side-by-side resizable panes -->
 					<div class="hidden h-full sm:block">
 						<ResizablePaneGroup direction="horizontal" class="h-full">
 							<ResizablePane defaultSize={50} minSize={30}>
-								<div class="flex h-full flex-col">
+								<div class="flex h-full flex-col overflow-hidden">
 									{#await canEditPromise then canEdit}
 										{#if hasFrontmatter}
 											<FrontmatterEditor
@@ -1059,7 +1059,7 @@
 												onchange={handleFrontmatterChange}
 											/>
 										{/if}
-										<div class="flex-1">
+										<div class="min-h-0 flex-1 overflow-auto">
 											<CodeMirror
 												bind:this={editorRef}
 												bind:value={editorContent}
@@ -1112,35 +1112,39 @@
 						</ResizablePaneGroup>
 					</div>
 					<!-- Mobile: toggle between code and preview -->
-					<div class="sm:hidden">
+					<div class="h-full overflow-hidden sm:hidden">
 						{#if mobileView === "code"}
-							{#await canEditPromise then canEdit}
-								{#if hasFrontmatter}
-									<FrontmatterEditor
-										bind:fields={frontmatterFields}
-										readonly={!$session.data || !canEdit}
-										onchange={handleFrontmatterChange}
-									/>
-								{/if}
-								<CodeMirror
-									bind:this={editorRef}
-									bind:value={editorContent}
-									onchange={(newValue) => {
-										handleEditorContentChange(newValue);
-										handleEditorChange(
-											hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
-										);
-									}}
-									oncursorchange={handleCursorChange}
-									remoteCursors={Array.from(remoteCursors.values())}
-									remoteSelections={Array.from(remoteSelections.values())}
-									{prComments}
-									onCommentClick={handleCommentClick}
-									onselectionchange={handleSelectionChange}
-									canAddComments={!!existingPR && !!$session.data}
-									readonly={!$session.data || !canEdit}
-								/>
-							{/await}
+							<div class="flex h-full flex-col overflow-hidden">
+								{#await canEditPromise then canEdit}
+									{#if hasFrontmatter}
+										<FrontmatterEditor
+											bind:fields={frontmatterFields}
+											readonly={!$session.data || !canEdit}
+											onchange={handleFrontmatterChange}
+										/>
+									{/if}
+									<div class="min-h-0 flex-1 overflow-auto">
+										<CodeMirror
+											bind:this={editorRef}
+											bind:value={editorContent}
+											onchange={(newValue) => {
+												handleEditorContentChange(newValue);
+												handleEditorChange(
+													hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
+												);
+											}}
+											oncursorchange={handleCursorChange}
+											remoteCursors={Array.from(remoteCursors.values())}
+											remoteSelections={Array.from(remoteSelections.values())}
+											{prComments}
+											onCommentClick={handleCommentClick}
+											onselectionchange={handleSelectionChange}
+											canAddComments={!!existingPR && !!$session.data}
+											readonly={!$session.data || !canEdit}
+										/>
+									</div>
+								{/await}
+							</div>
 						{:else if previewMode === "live" && sandboxStatus === "running" && previewUrl}
 							<iframe
 								src={previewUrl}
@@ -1162,33 +1166,37 @@
 						{/if}
 					</div>
 				{:else}
-					{#await canEditPromise then canEdit}
-						{#if hasFrontmatter}
-							<FrontmatterEditor
-								bind:fields={frontmatterFields}
-								readonly={!$session.data || !canEdit}
-								onchange={handleFrontmatterChange}
-							/>
-						{/if}
-						<CodeMirror
-							bind:this={editorRef}
-							bind:value={editorContent}
-							onchange={(newValue) => {
-								handleEditorContentChange(newValue);
-								handleEditorChange(
-									hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
-								);
-							}}
-							oncursorchange={handleCursorChange}
-							remoteCursors={Array.from(remoteCursors.values())}
-							remoteSelections={Array.from(remoteSelections.values())}
-							{prComments}
-							onCommentClick={handleCommentClick}
-							onselectionchange={handleSelectionChange}
-							canAddComments={!!existingPR && !!$session.data}
-							readonly={!$session.data || !canEdit}
-						/>
-					{/await}
+					<div class="flex h-full flex-col overflow-hidden">
+						{#await canEditPromise then canEdit}
+							{#if hasFrontmatter}
+								<FrontmatterEditor
+									bind:fields={frontmatterFields}
+									readonly={!$session.data || !canEdit}
+									onchange={handleFrontmatterChange}
+								/>
+							{/if}
+							<div class="min-h-0 flex-1 overflow-auto">
+								<CodeMirror
+									bind:this={editorRef}
+									bind:value={editorContent}
+									onchange={(newValue) => {
+										handleEditorContentChange(newValue);
+										handleEditorChange(
+											hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
+										);
+									}}
+									oncursorchange={handleCursorChange}
+									remoteCursors={Array.from(remoteCursors.values())}
+									remoteSelections={Array.from(remoteSelections.values())}
+									{prComments}
+									onCommentClick={handleCommentClick}
+									onselectionchange={handleSelectionChange}
+									canAddComments={!!existingPR && !!$session.data}
+									readonly={!$session.data || !canEdit}
+								/>
+							</div>
+						{/await}
+					</div>
 				{/if}
 			</div>
 		{/if}

@@ -310,7 +310,7 @@
 		</Sidebar.Footer>
 	</Sidebar.Root>
 
-	<Sidebar.Inset class="flex max-h-svh flex-col overflow-hidden">
+	<Sidebar.Inset class="flex max-h-svh flex-col overflow-x-hidden overscroll-none">
 		<!-- Header with sidebar trigger, branch and file path -->
 		<header class="flex h-12 shrink-0 items-center gap-2 border-b px-4">
 			<Sidebar.Trigger class="-ml-1" />
@@ -330,7 +330,7 @@
 		</header>
 
 		<!-- Main content -->
-		<div class="min-h-0 flex-1 overflow-hidden">
+		<div class="min-h-0 flex-1">
 			{@render children()}
 		</div>
 	</Sidebar.Inset>
