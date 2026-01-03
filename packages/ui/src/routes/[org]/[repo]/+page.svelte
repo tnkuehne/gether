@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { page } from "$app/state";
+	import type { PageProps } from "./$types";
 	import { goto } from "$app/navigation";
 	import { getRepoFiles } from "./github-files";
-	import { getDefaultBranch, getBranches, createFile, createBranch } from "./github";
+	import { createFile, createBranch } from "./github";
 	import {
 		Card,
 		CardContent,
@@ -29,14 +29,31 @@
 
 	const session = authClient.useSession();
 
+	let { data }: PageProps = $props();
+
 	let dialogOpen = $state(false);
 	let filePath = $state("");
 	let baseDir = $state("");
 	let isCreating = $state(false);
 	let createError = $state<string | null>(null);
-	let selectedBranch = $state<string | undefined>(undefined);
-	let files = $state<Awaited<ReturnType<typeof getRepoFiles>>>([]);
+	let selectedBranch = $state<string | null>(null);
+	let files = $state<Awaited<ReturnType<typeof getRepoFiles>> | null>(null);
+	let branches = $state<string[] | null>(null);
 	let isLoadingFiles = $state(false);
+
+	// Sync state when promises resolve
+	$effect(() => {
+		data.branches.then((b) => {
+			if (branches === null) branches = b;
+		});
+	});
+
+	$effect(() => {
+		data.filesData.then((fd) => {
+			if (selectedBranch === null) selectedBranch = fd.defaultBranch;
+			if (files === null) files = fd.files;
+		});
+	});
 
 	// Branch creation state
 	let branchPopoverOpen = $state(false);
@@ -45,21 +62,13 @@
 	let createBranchError = $state<string | null>(null);
 	let showNewBranchInput = $state(false);
 
-	// Files depend on default branch
-	const filesPromise = getDefaultBranch(page.params.org, page.params.repo).then(
-		async (defaultBranch) => {
-			selectedBranch = defaultBranch;
-			files = await getRepoFiles(page.params.org, page.params.repo, defaultBranch);
-		},
-	);
-
 	async function handleBranchChange(branch: string) {
 		if (branch === selectedBranch) return;
 		branchPopoverOpen = false;
 		selectedBranch = branch;
 		isLoadingFiles = true;
 		try {
-			files = await getRepoFiles(page.params.org, page.params.repo, branch);
+			files = await getRepoFiles(data.org, data.repo, branch);
 		} finally {
 			isLoadingFiles = false;
 		}
@@ -85,8 +94,8 @@
 
 		try {
 			const result = await createFile(
-				page.params.org,
-				page.params.repo,
+				data.org,
+				data.repo,
 				finalPath,
 				"",
 				`Create ${finalPath}`,
@@ -98,9 +107,9 @@
 			baseDir = "";
 
 			// Refresh files list
-			files = await getRepoFiles(page.params.org, page.params.repo, selectedBranch);
+			files = await getRepoFiles(data.org, data.repo, selectedBranch);
 
-			goto(`/${page.params.org}/${page.params.repo}/blob/${selectedBranch}/${result.path}`);
+			goto(`/${data.org}/${data.repo}/blob/${selectedBranch}/${result.path}`);
 		} catch (err) {
 			createError = err instanceof Error ? err.message : "Failed to create file";
 		} finally {
@@ -116,17 +125,20 @@
 
 		try {
 			const branchName = await createBranch(
-				page.params.org,
-				page.params.repo,
+				data.org,
+				data.repo,
 				newBranchName.trim(),
 				selectedBranch,
 			);
 
 			// Add to branches list and select it
+			if (branches) {
+				branches = [...branches, branchName];
+			}
 			selectedBranch = branchName;
 
 			// Load files for the new branch
-			files = await getRepoFiles(page.params.org, page.params.repo, branchName);
+			files = await getRepoFiles(data.org, data.repo, branchName);
 
 			branchPopoverOpen = false;
 			showNewBranchInput = false;
@@ -143,7 +155,7 @@
 	<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 		<div>
 			<h1 class="mb-2 text-2xl font-bold break-all sm:text-3xl">
-				{page.params.org}/{page.params.repo}
+				{data.org}/{data.repo}
 			</h1>
 			<p class="text-muted-foreground">Markdown, MDX files</p>
 		</div>
@@ -185,12 +197,12 @@
 				<CardDescription>Select a file to view</CardDescription>
 			</div>
 			<div class="flex flex-row gap-2 sm:items-center">
-				{#await getBranches(page.params.org, page.params.repo)}
+				{#await data.branches}
 					<Button variant="outline" size="sm" disabled class="sm:w-[180px]">
 						<GitBranch class="mr-2 size-4" />
 						<Skeleton class="h-4 w-16" />
 					</Button>
-				{:then branches}
+				{:then}
 					<Popover.Root bind:open={branchPopoverOpen}>
 						<Popover.Trigger>
 							{#snippet child({ props })}
@@ -202,7 +214,7 @@
 								>
 									<span class="flex items-center">
 										<GitBranch class="mr-2 size-4" />
-										<span class="truncate">{selectedBranch}</span>
+										<span class="truncate">{selectedBranch ?? "..."}</span>
 									</span>
 									<ChevronDown class="ml-2 size-4 shrink-0 opacity-50" />
 								</Button>
@@ -256,7 +268,7 @@
 								</div>
 							{:else}
 								<div class="max-h-[200px] overflow-y-auto p-1">
-									{#each branches as branch (branch)}
+									{#each branches ?? [] as branch (branch)}
 										<button
 											class="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
 											onclick={() => handleBranchChange(branch)}
@@ -284,6 +296,11 @@
 							{/if}
 						</Popover.Content>
 					</Popover.Root>
+				{:catch}
+					<Button variant="outline" size="sm" disabled class="sm:w-[180px]">
+						<GitBranch class="mr-2 size-4" />
+						Error
+					</Button>
 				{/await}
 				{#if $session.data}
 					<Button size="sm" onclick={() => openCreateDialog()}>
@@ -342,7 +359,7 @@
 			</div>
 		</CardHeader>
 		<CardContent>
-			{#await filesPromise}
+			{#await data.filesData}
 				<div class="space-y-2">
 					{#each Array.from({ length: 4 }, (_, i) => i) as i (i)}
 						<div class="flex items-center gap-3">
@@ -361,11 +378,11 @@
 							</div>
 						{/each}
 					</div>
-				{:else if files.length === 0}
+				{:else if (files ?? []).length === 0}
 					<p class="text-muted-foreground">No markdown files found in this repository.</p>
 				{:else}
 					<div class="space-y-1">
-						{#each files as item (item.path)}
+						{#each files ?? [] as item (item.path)}
 							{@const depth = item.path.split("/").length - 1}
 							{#if item.type === "dir"}
 								<div
@@ -386,7 +403,7 @@
 								</div>
 							{:else}
 								<a
-									href="/{page.params.org}/{page.params.repo}/blob/{selectedBranch}/{item.path}"
+									href="/{data.org}/{data.repo}/blob/{selectedBranch}/{item.path}"
 									class="flex items-center gap-2 rounded-md py-1.5 transition-colors hover:bg-muted"
 									style="padding-left: {depth * 1.25}rem"
 								>
