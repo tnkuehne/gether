@@ -30,15 +30,12 @@
 		getHasGitHubApp,
 		getGetherConfig,
 		getIsBranchProtected,
-		getRepoDefaultBranch,
 		getCurrentUser,
 		checkUserFork,
 		checkExistingPR,
 		doForkRepository,
 		doCreateBranch,
 		doCreatePullRequest,
-		getRepoBranches,
-		parseBranchAndPath,
 		getPRCommentsForFile,
 		doCreatePRComment,
 		doReplyToPRComment,
@@ -52,53 +49,18 @@
 	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 
+	import type { PageProps } from "./$types";
+
+	let { data }: PageProps = $props();
+
 	// Use derived values for reactive route parameters
 	let org = $derived(page.params.org);
 	let repo = $derived(page.params.repo);
-	let rest = $derived(page.params.rest);
 
-	// Parse branch and path from the combined rest parameter
-	// We need to fetch branches first to correctly parse branches with slashes
-	let branch = $state<string | undefined>(undefined);
-	let path = $state<string | undefined>(undefined);
-
-	// Cache branches and default branch to avoid refetching on every file switch
-	let cachedBranches = $state<string[]>([]);
-	let cachedDefaultBranch = $state<string | null>(null);
-	let branchesLoaded = $state(false);
-
-	// Track the current rest value to detect changes
-	let lastRest = $state<string | undefined>(undefined);
-
-	// Initialize by fetching branches and parsing the path
-	const initPromise = (async () => {
-		const [branches, defaultBranchResult] = await Promise.all([
-			getRepoBranches(org!, repo!),
-			getRepoDefaultBranch(org!, repo!),
-		]);
-
-		cachedBranches = branches;
-		cachedDefaultBranch = defaultBranchResult;
-		branchesLoaded = true;
-
-		const parsed = parseBranchAndPath(rest!, branches, defaultBranchResult ?? undefined);
-		if (parsed) {
-			branch = parsed.branch;
-			path = parsed.path;
-		} else {
-			// Fallback: use first segment as branch
-			const firstSlash = rest!.indexOf("/");
-			if (firstSlash === -1) {
-				branch = rest!;
-				path = "";
-			} else {
-				branch = rest!.slice(0, firstSlash);
-				path = rest!.slice(firstSlash + 1);
-			}
-		}
-		lastRest = rest;
-		return { branch, path, defaultBranch: defaultBranchResult };
-	})();
+	// Branch and path come from load function (re-runs on navigation)
+	let branch = $derived(data.branch);
+	let path = $derived(data.path);
+	let defaultBranch = $derived(data.defaultBranch);
 
 	// Check if file is markdown (derived from path state)
 	let isMarkdown = $derived(
@@ -115,19 +77,12 @@
 	const session = authClient.useSession();
 
 	// Fetch data using promises chained after init
-	const filePromise = initPromise.then(({ branch, path }) =>
-		getFileContent(org!, repo!, path!, branch!),
-	);
+	const filePromise = getFileContent(org!, repo!, data.path, data.branch);
 	const canEditPromise = getCanEdit(org!, repo!);
-	const getherConfigPromise = initPromise.then(({ branch }) =>
-		getGetherConfig(org!, repo!, branch!),
-	);
+	const getherConfigPromise = getGetherConfig(org!, repo!, data.branch);
 
 	// Contribution workflow data promises
-	const branchProtectedPromise = initPromise.then(({ branch }) =>
-		getIsBranchProtected(org!, repo!, branch!),
-	);
-	const defaultBranchPromise = initPromise.then(({ defaultBranch }) => defaultBranch);
+	const branchProtectedPromise = getIsBranchProtected(org!, repo!, data.branch);
 	const currentUserPromise = getCurrentUser();
 	const existingForkPromise = checkUserFork(org!, repo!);
 
@@ -137,7 +92,6 @@
 	let currentBranch = $state<string>("");
 	let canEdit = $state(false);
 	let isProtected = $state(false);
-	let defaultBranch = $state<string | null>(null);
 	let currentUser = $state<string | null>(null);
 	let existingFork = $state<ForkInfo | null>(null);
 	let existingPR = $state<PullRequestInfo | null>(null);
@@ -300,44 +254,21 @@
 		editorContent = parsed.hasFrontmatter ? parsed.content : result.fileData.content;
 	}
 
-	// Watch for URL changes (file switching via sidebar) and refetch file content
+	// Watch for data changes (file switching via sidebar triggers load function re-run)
+	let lastPath = $state<string | undefined>(undefined);
 	$effect(() => {
-		// Access rest to create a dependency on it
-		const currentRest = rest;
-
-		// Skip if this is the initial load (lastRest not set yet) or no change
-		if (!branchesLoaded || !currentRest || currentRest === lastRest) {
+		// Skip initial load
+		if (lastPath === undefined) {
+			lastPath = data.path;
 			return;
 		}
 
-		// Re-parse branch and path from the new rest value
-		const parsed = parseBranchAndPath(
-			currentRest,
-			cachedBranches,
-			cachedDefaultBranch ?? undefined,
-		);
-		let newBranch: string;
-		let newPath: string;
-
-		if (parsed) {
-			newBranch = parsed.branch;
-			newPath = parsed.path;
-		} else {
-			// Fallback: use first segment as branch
-			const firstSlash = currentRest.indexOf("/");
-			if (firstSlash === -1) {
-				newBranch = currentRest;
-				newPath = "";
-			} else {
-				newBranch = currentRest.slice(0, firstSlash);
-				newPath = currentRest.slice(firstSlash + 1);
-			}
+		// Skip if no change
+		if (data.path === lastPath) {
+			return;
 		}
 
-		// Update state
-		branch = newBranch;
-		path = newPath;
-		lastRest = currentRest;
+		lastPath = data.path;
 
 		// Close existing WebSocket connection before switching files
 		if (ws) {
@@ -361,7 +292,7 @@
 		hasStartedEditing = false;
 
 		// Fetch new file content
-		getFileContent(org!, repo!, newPath, newBranch).then((fileResult) => {
+		getFileContent(org!, repo!, data.path, data.branch).then((fileResult) => {
 			if (fileResult.fileData) {
 				fileData = fileResult.fileData;
 				content = fileResult.fileData.content;
@@ -396,32 +327,28 @@
 			Promise.all([
 				canEditPromise,
 				branchProtectedPromise,
-				defaultBranchPromise,
 				currentUserPromise,
 				existingForkPromise,
-			]).then(
-				async ([canEditResult, isProtectedResult, defaultBranchResult, userResult, forkResult]) => {
-					canEdit = canEditResult;
-					isProtected = isProtectedResult;
-					defaultBranch = defaultBranchResult;
-					currentUser = userResult;
-					existingFork = forkResult;
+			]).then(async ([canEditResult, isProtectedResult, userResult, forkResult]) => {
+				canEdit = canEditResult;
+				isProtected = isProtectedResult;
+				currentUser = userResult;
+				existingFork = forkResult;
 
-					// Check for existing PR if we're not on default branch
-					if (defaultBranchResult && currentBranch !== defaultBranchResult) {
-						const pr = await checkExistingPR(
-							currentOrg,
-							currentRepo,
-							currentBranch,
-							userResult ?? undefined,
-						);
-						existingPR = pr;
-					}
+				// Check for existing PR if we're not on default branch
+				if (defaultBranch && currentBranch !== defaultBranch) {
+					const pr = await checkExistingPR(
+						currentOrg,
+						currentRepo,
+						currentBranch,
+						userResult ?? undefined,
+					);
+					existingPR = pr;
+				}
 
-					// Mark contribution data as loaded
-					contributionDataLoaded = true;
-				},
-			);
+				// Mark contribution data as loaded
+				contributionDataLoaded = true;
+			});
 		}
 	});
 
