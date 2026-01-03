@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from "$app/state";
 	import { SvelteMap, SvelteSet } from "svelte/reactivity";
+	import type { Snippet } from "svelte";
 	import { authClient } from "$lib/auth-client";
-	import { getRepoFiles, type TreeItem } from "../github-files";
-	import { getDefaultBranch } from "../github";
+	import { getRepoFiles, type TreeItem } from "../../github-files";
 	import * as Sidebar from "$lib/components/ui/sidebar";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
@@ -20,56 +20,43 @@
 	import LogIn from "@lucide/svelte/icons/log-in";
 	import Github from "@lucide/svelte/icons/github";
 
-	let { children } = $props();
+	import type { LayoutData } from "./$types";
+
+	let { children, data }: { children: Snippet; data: LayoutData } = $props();
 
 	const org = page.params.org!;
 	const repo = page.params.repo!;
-	// Use $derived for rest so currentPath updates when navigating between files
-	let rest = $derived(page.params.rest!);
 	const session = authClient.useSession();
+
+	// Use branch and path from load function
+	let branch = $derived(data.branch);
+	let path = $derived(data.path);
 
 	// State for file tree
 	let files = $state<TreeItem[]>([]);
 	let isLoadingFiles = $state(true);
-	let selectedBranch = $state<string>("");
 	let searchQuery = $state("");
 	let expandedDirs = new SvelteSet<string>();
 
-	// Parse current file path from rest param
-	let currentPath = $derived.by(() => {
-		if (!rest || !selectedBranch) return "";
-		const branchPrefix = selectedBranch + "/";
-		if (rest.startsWith(branchPrefix)) {
-			return rest.slice(branchPrefix.length);
-		}
-		const parts = rest.split("/");
-		for (let i = 1; i <= parts.length; i++) {
-			const possibleBranch = parts.slice(0, i).join("/");
-			if (possibleBranch === selectedBranch) {
-				return parts.slice(i).join("/");
-			}
-		}
-		return rest;
-	});
-
 	// Initialize files on load
-	const initPromise = getDefaultBranch(org, repo).then(async (defaultBranch) => {
-		selectedBranch = defaultBranch;
-		try {
-			files = await getRepoFiles(org, repo, defaultBranch);
+	const initPromise = getRepoFiles(org, repo, data.branch)
+		.then((result) => {
+			files = result;
 			// Expand directories that contain the current file
-			if (currentPath) {
-				const pathParts = currentPath.split("/");
+			if (path) {
+				const pathParts = path.split("/");
 				for (let i = 1; i < pathParts.length; i++) {
 					expandedDirs.add(pathParts.slice(0, i).join("/"));
 				}
 			}
-		} catch {
+			isLoadingFiles = false;
+			return result;
+		})
+		.catch(() => {
 			files = [];
-		}
-		isLoadingFiles = false;
-		return defaultBranch;
-	});
+			isLoadingFiles = false;
+			return [];
+		});
 
 	// Filter files based on search query, including ancestor directories
 	let filteredFiles = $derived.by(() => {
@@ -141,7 +128,7 @@
 	}
 
 	function isFileActive(filePath: string): boolean {
-		return currentPath === filePath;
+		return path === filePath;
 	}
 
 	function handleSignIn() {
@@ -252,7 +239,7 @@
 																	<Sidebar.MenuSubButton data-active={isFileActive(subItem.path)}>
 																		{#snippet child({ props })}
 																			<a
-																				href="/{org}/{repo}/blob/{selectedBranch}/{subItem.path}"
+																				href="/{org}/{repo}/blob/{branch}/{subItem.path}"
 																				{...props}
 																			>
 																				<FileText class="size-4 text-muted-foreground" />
@@ -272,7 +259,7 @@
 										<Sidebar.MenuItem>
 											<Sidebar.MenuButton isActive={isFileActive(item.path)}>
 												{#snippet child({ props })}
-													<a href="/{org}/{repo}/blob/{selectedBranch}/{item.path}" {...props}>
+													<a href="/{org}/{repo}/blob/{branch}/{item.path}" {...props}>
 														<FileText class="size-4 text-muted-foreground" />
 														<span class="truncate">{item.name}</span>
 													</a>
@@ -324,10 +311,10 @@
 			{:then}
 				<div class="flex min-w-0 items-center gap-2 text-sm">
 					<GitBranch class="size-4 shrink-0 text-muted-foreground" />
-					<span class="shrink-0 text-muted-foreground">{selectedBranch}</span>
-					{#if currentPath}
+					<span class="shrink-0 text-muted-foreground">{branch}</span>
+					{#if path}
 						<span class="text-muted-foreground">/</span>
-						<span class="truncate">{currentPath}</span>
+						<span class="truncate">{path}</span>
 					{/if}
 				</div>
 			{/await}
