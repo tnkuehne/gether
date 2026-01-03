@@ -47,7 +47,13 @@ export async function fetchFileContent(
 	});
 
 	if ("content" in fileResponse && fileResponse.type === "file") {
-		const decodedContent = atob(fileResponse.content);
+		// Properly decode UTF-8 content from base64
+		const binaryString = atob(fileResponse.content);
+		const bytes = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			bytes[i] = binaryString.charCodeAt(i);
+		}
+		const decodedContent = new TextDecoder("utf-8").decode(bytes);
 
 		return {
 			content: decodedContent,
