@@ -45,12 +45,12 @@
 	let createBranchError = $state<string | null>(null);
 	let showNewBranchInput = $state(false);
 
-	// Files depend on default branch
-	const filesPromise = getDefaultBranch(page.params.org, page.params.repo).then(
-		async (defaultBranch) => {
+	// Files depend on default branch - use $derived to react to param changes
+	const filesPromise = $derived(
+		getDefaultBranch(page.params.org, page.params.repo).then(async (defaultBranch) => {
 			selectedBranch = defaultBranch;
 			files = await getRepoFiles(page.params.org, page.params.repo, defaultBranch);
-		},
+		}),
 	);
 
 	async function handleBranchChange(branch: string) {
