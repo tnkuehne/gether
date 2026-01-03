@@ -1,6 +1,8 @@
 import { betterAuth } from "better-auth/minimal";
 import { env } from "$env/dynamic/private";
+import { BETTER_AUTH_URL } from "$env/static/private";
 import { sveltekitCookies } from "better-auth/svelte-kit";
+import { oAuthProxy } from "better-auth/plugins";
 import { getRequestEvent } from "$app/server";
 
 export const auth = betterAuth({
@@ -9,9 +11,15 @@ export const auth = betterAuth({
 		github: {
 			clientId: env.GITHUB_CLIENT_ID,
 			clientSecret: env.GITHUB_CLIENT_SECRET,
+			redirectURI: `${BETTER_AUTH_URL}/api/auth/callback/github`,
 		},
 	},
-	plugins: [sveltekitCookies(getRequestEvent)],
+	plugins: [
+		oAuthProxy({
+			productionURL: BETTER_AUTH_URL,
+		}),
+		sveltekitCookies(getRequestEvent),
+	],
 });
 
 export type Session = typeof auth.$Infer.Session.session;
