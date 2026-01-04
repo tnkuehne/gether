@@ -18,37 +18,152 @@
 	} from "$lib/components/contribution/contribution-state.svelte";
 	import { Octokit } from "octokit";
 	import { authClient } from "$lib/auth-client";
-	import { commitFile } from "$lib/github-app";
+	import {
+		commitFile,
+		getFileContentWithErrorHandling,
+		checkWritePermission,
+		hasGitHubAppInstalled,
+		fetchGetherConfig,
+		checkBranchProtection,
+		getAuthenticatedUser,
+		getUserFork,
+		getExistingPullRequest,
+		forkRepository,
+		createBranch,
+		createPullRequest,
+		fetchPRComments,
+		groupCommentsByLine,
+		createPRComment,
+		replyToPRComment,
+		GITHUB_APP_INSTALL_URL,
+		type FileData,
+		type FileResult,
+		type ForkInfo,
+		type PullRequestInfo,
+		type PRCommentThread,
+	} from "$lib/github-app";
+	import { getOctokit, getPublicOctokit, requireOctokit } from "$lib/github-auth";
 	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from "$lib/components/ui/resizable";
 	import * as Tooltip from "$lib/components/ui/tooltip";
 	import { Streamdown } from "svelte-streamdown";
 	import posthog from "posthog-js";
 	import { startPreview, getSandboxStatus, syncFileToSandbox } from "./sandbox.remote";
-	import {
-		getFileContent,
-		getCanEdit,
-		getHasGitHubApp,
-		getGetherConfig,
-		getIsBranchProtected,
-		getCurrentUser,
-		checkUserFork,
-		checkExistingPR,
-		doForkRepository,
-		doCreateBranch,
-		doCreatePullRequest,
-		getPRCommentsForFile,
-		doCreatePRComment,
-		doReplyToPRComment,
-		type FileData,
-		type ForkInfo,
-		type PullRequestInfo,
-		type PRCommentThread,
-	} from "./github";
 	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
 
-	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
-	import CircleAlert from "@lucide/svelte/icons/circle-alert";
+	// Helper functions that compose auth + lib functions
+	async function getFileContent(org: string, repo: string, path: string, branch: string): Promise<FileResult> {
+		const auth = await getOctokit();
+		const octokit = auth?.octokit ?? getPublicOctokit();
+		return getFileContentWithErrorHandling(octokit, org, repo, path, branch, !!auth);
+	}
 
+	async function getCanEdit(org: string, repo: string): Promise<boolean> {
+		const auth = await getOctokit();
+		if (!auth) return false;
+		try {
+			return await checkWritePermission(auth.octokit, org, repo);
+		} catch {
+			return false;
+		}
+	}
+
+	async function getHasGitHubApp(): Promise<boolean> {
+		const auth = await getOctokit();
+		if (!auth) return false;
+		try {
+			return await hasGitHubAppInstalled(auth.accessToken);
+		} catch {
+			return false;
+		}
+	}
+
+	async function getGetherConfig(org: string, repo: string, branch: string) {
+		const auth = await getOctokit();
+		const octokit = auth?.octokit ?? getPublicOctokit();
+		try {
+			return await fetchGetherConfig(octokit, org, repo, branch);
+		} catch {
+			return null;
+		}
+	}
+
+	async function getIsBranchProtected(org: string, repo: string, branch: string): Promise<boolean> {
+		const auth = await getOctokit();
+		if (!auth) return false;
+		try {
+			return await checkBranchProtection(auth.octokit, org, repo, branch);
+		} catch {
+			return false;
+		}
+	}
+
+	async function getCurrentUser(): Promise<string | null> {
+		const auth = await getOctokit();
+		if (!auth) return null;
+		try {
+			return await getAuthenticatedUser(auth.octokit);
+		} catch {
+			return null;
+		}
+	}
+
+	async function checkUserFork(org: string, repo: string): Promise<ForkInfo | null> {
+		const auth = await getOctokit();
+		if (!auth) return null;
+		try {
+			return await getUserFork(auth.octokit, org, repo);
+		} catch {
+			return null;
+		}
+	}
+
+	async function checkExistingPR(org: string, repo: string, headBranch: string, headOwner?: string): Promise<PullRequestInfo | null> {
+		const auth = await getOctokit();
+		if (!auth) return null;
+		try {
+			return await getExistingPullRequest(auth.octokit, org, repo, headBranch, headOwner);
+		} catch {
+			return null;
+		}
+	}
+
+	async function doForkRepository(org: string, repo: string): Promise<ForkInfo> {
+		const { octokit } = await requireOctokit();
+		return forkRepository(octokit, org, repo);
+	}
+
+	async function doCreateBranch(org: string, repo: string, branchName: string, sourceBranch: string): Promise<string> {
+		const { octokit } = await requireOctokit();
+		return createBranch(octokit, org, repo, branchName, sourceBranch);
+	}
+
+	async function doCreatePullRequest(org: string, repo: string, params: { title: string; body?: string; head: string; base: string; draft?: boolean }): Promise<PullRequestInfo> {
+		const { octokit } = await requireOctokit();
+		return createPullRequest(octokit, org, repo, params);
+	}
+
+	async function getPRCommentsForFile(org: string, repo: string, prNumber: number, filePath: string): Promise<Map<number, PRCommentThread>> {
+		const auth = await getOctokit();
+		if (!auth) return new Map();
+		try {
+			const comments = await fetchPRComments(auth.octokit, org, repo, prNumber);
+			return groupCommentsByLine(comments, filePath);
+		} catch {
+			return new Map();
+		}
+	}
+
+	async function doCreatePRComment(org: string, repo: string, prNumber: number, params: { body: string; path: string; line: number; commitId: string; side?: "LEFT" | "RIGHT" }) {
+		const { octokit } = await requireOctokit();
+		return createPRComment(octokit, org, repo, prNumber, params);
+	}
+
+	async function doReplyToPRComment(org: string, repo: string, prNumber: number, commentId: number, body: string) {
+		const { octokit } = await requireOctokit();
+		return replyToPRComment(octokit, org, repo, prNumber, commentId, body);
+	}
+
+	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import type { PageProps } from "./$types";
 
 	let { data }: PageProps = $props();

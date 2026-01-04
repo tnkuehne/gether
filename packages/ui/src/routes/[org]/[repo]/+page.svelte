@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { PageProps } from "./$types";
 	import { goto } from "$app/navigation";
-	import { getRepoFiles } from "./github-files";
-	import { createFile, createBranch } from "./github";
+	import { getRepoFiles, createFile, createBranch } from "$lib/github-app";
+	import { getOctokit, getPublicOctokit, requireOctokit } from "$lib/github-auth";
 	import {
 		Card,
 		CardContent,
@@ -68,7 +68,9 @@
 		selectedBranch = branch;
 		isLoadingFiles = true;
 		try {
-			files = await getRepoFiles(data.org, data.repo, branch);
+			const auth = await getOctokit();
+			const octokit = auth?.octokit ?? getPublicOctokit();
+			files = await getRepoFiles(octokit, data.org, data.repo, branch);
 		} finally {
 			isLoadingFiles = false;
 		}
@@ -93,7 +95,9 @@
 		createError = null;
 
 		try {
+			const { octokit } = await requireOctokit();
 			const result = await createFile(
+				octokit,
 				data.org,
 				data.repo,
 				finalPath,
@@ -107,7 +111,7 @@
 			baseDir = "";
 
 			// Refresh files list
-			files = await getRepoFiles(data.org, data.repo, selectedBranch);
+			files = await getRepoFiles(octokit, data.org, data.repo, selectedBranch);
 
 			goto(`/${data.org}/${data.repo}/blob/${selectedBranch}/${result.path}`);
 		} catch (err) {
@@ -124,7 +128,9 @@
 		createBranchError = null;
 
 		try {
+			const { octokit } = await requireOctokit();
 			const branchName = await createBranch(
+				octokit,
 				data.org,
 				data.repo,
 				newBranchName.trim(),
@@ -138,7 +144,7 @@
 			selectedBranch = branchName;
 
 			// Load files for the new branch
-			files = await getRepoFiles(data.org, data.repo, branchName);
+			files = await getRepoFiles(octokit, data.org, data.repo, branchName);
 
 			branchPopoverOpen = false;
 			showNewBranchInput = false;

@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { getGitHubAppStatus, getRepositories } from "./github";
+	import {
+		getGitHubAppStatus,
+		listUserRepositories,
+		GITHUB_APP_INSTALL_URL,
+		type Repository,
+	} from "$lib/github-app";
+	import { requireOctokit } from "$lib/github-auth";
 	import { Alert, AlertDescription, AlertTitle } from "$lib/components/ui/alert";
 	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
@@ -10,9 +16,19 @@
 	import Plus from "@lucide/svelte/icons/plus";
 
 	import { authClient } from "$lib/auth-client";
-	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 
 	const session = authClient.useSession();
+
+	// Wrapper functions that compose auth + lib functions
+	async function fetchGitHubAppStatus() {
+		const auth = await requireOctokit();
+		return getGitHubAppStatus(auth.accessToken);
+	}
+
+	async function getRepositories(): Promise<Repository[]> {
+		const auth = await requireOctokit();
+		return listUserRepositories(auth.octokit);
+	}
 
 	async function handleGitHubAppClick() {
 		const response = await authClient.signIn.social({
@@ -77,7 +93,7 @@
 		</div>
 	{:else}
 		<!-- Logged in - show dashboard content -->
-		{#await getGitHubAppStatus()}
+		{#await fetchGitHubAppStatus()}
 			<div class="mb-6 flex items-center justify-between">
 				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
 				<Skeleton class="h-9 w-36" />

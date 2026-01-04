@@ -3,7 +3,8 @@
 	import { SvelteMap, SvelteSet } from "svelte/reactivity";
 	import type { Snippet } from "svelte";
 	import { authClient } from "$lib/auth-client";
-	import { getRepoFiles, type TreeItem } from "../../github-files";
+	import { getRepoFiles, type TreeItem } from "$lib/github-app";
+	import { getOctokit, getPublicOctokit } from "$lib/github-auth";
 	import * as Sidebar from "$lib/components/ui/sidebar";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
@@ -39,7 +40,11 @@
 	let expandedDirs = new SvelteSet<string>();
 
 	// Initialize files on load
-	const initPromise = getRepoFiles(org, repo, data.branch)
+	const initPromise = (async () => {
+		const auth = await getOctokit();
+		const octokit = auth?.octokit ?? getPublicOctokit();
+		return getRepoFiles(octokit, org, repo, data.branch);
+	})()
 		.then((result) => {
 			files = result;
 			// Expand directories that contain the current file
