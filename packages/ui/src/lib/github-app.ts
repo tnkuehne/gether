@@ -1,6 +1,19 @@
 import { Octokit } from "octokit";
 import { PUBLIC_GITHUB_APP_ID, PUBLIC_GITHUB_APP_SLUG } from "$env/static/public";
 
+/**
+ * Encode a UTF-8 string to base64 (handles non-ASCII characters like emoji, CJK, etc.)
+ * This is the inverse of how fetchFileContent decodes content.
+ */
+function encodeBase64(content: string): string {
+	const bytes = new TextEncoder().encode(content);
+	let binary = "";
+	for (let i = 0; i < bytes.length; i++) {
+		binary += String.fromCharCode(bytes[i]);
+	}
+	return btoa(binary);
+}
+
 // GitHub App installation URL - user installs app to grant access to specific repos
 export const GITHUB_APP_INSTALL_URL = PUBLIC_GITHUB_APP_SLUG
 	? `https://github.com/apps/${PUBLIC_GITHUB_APP_SLUG}/installations/new`
@@ -131,7 +144,7 @@ export async function commitFile(
 		repo: repo,
 		path: path,
 		message: message,
-		content: btoa(content),
+		content: encodeBase64(content),
 		sha: sha,
 		branch: branch,
 	});
@@ -809,7 +822,7 @@ export async function createFile(
 		repo,
 		path,
 		message,
-		content: btoa(content),
+		content: encodeBase64(content),
 		branch,
 	});
 
