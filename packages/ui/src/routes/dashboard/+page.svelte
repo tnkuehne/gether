@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { getGitHubAppStatus, getRepositories } from "./github";
+	import {
+		getGitHubAppStatus,
+		listUserRepositories,
+		GITHUB_APP_INSTALL_URL,
+		type Repository,
+	} from "$lib/github-app";
+	import { requireOctokit } from "$lib/github-auth";
 	import { Alert, AlertDescription, AlertTitle } from "$lib/components/ui/alert";
 	import { Button } from "$lib/components/ui/button";
 	import { Skeleton } from "$lib/components/ui/skeleton";
@@ -10,9 +16,18 @@
 	import Plus from "@lucide/svelte/icons/plus";
 
 	import { authClient } from "$lib/auth-client";
-	import { GITHUB_APP_INSTALL_URL } from "$lib/github-app";
 
 	const session = authClient.useSession();
+
+	async function getRepositories(): Promise<Repository[]> {
+		const auth = await requireOctokit();
+		return listUserRepositories(auth.octokit);
+	}
+
+	async function fetchGitHubAppStatus() {
+		const auth = await requireOctokit();
+		return getGitHubAppStatus(auth.accessToken);
+	}
 
 	async function handleGitHubAppClick() {
 		const response = await authClient.signIn.social({
@@ -52,36 +67,46 @@
 				</div>
 			{/each}
 		</div>
-	{:else if !$session.data}
-		<!-- Not logged in - show sign in prompt -->
+	{:else if $session.data}
+		<!-- User is authenticated -->
 		<div class="mb-6 flex items-center justify-between">
 			<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
-		</div>
-
-		<div class="flex flex-col items-center justify-center py-12 sm:py-24">
-			<div class="flex max-w-md flex-col items-center gap-6 text-center">
-				<div class="rounded-full bg-muted p-6">
-					<Github class="size-12 text-muted-foreground" />
-				</div>
-				<div class="space-y-2">
-					<h2 class="text-2xl font-semibold">Sign in to continue</h2>
-					<p class="text-muted-foreground">
-						Sign in with GitHub to access your repositories and start collaborating.
-					</p>
-				</div>
-				<Button size="lg" onclick={handleSignIn}>
-					<Github class="size-4" />
-					Sign in with GitHub
+			<div class="flex items-center gap-2">
+				<span class="hidden text-sm text-muted-foreground sm:inline">{$session.data.user.name}</span
+				>
+				<Button
+					onclick={async () => {
+						await authClient.signOut();
+					}}
+					variant="outline"
+					size="sm"
+				>
+					Sign Out
 				</Button>
 			</div>
 		</div>
-	{:else}
-		<!-- Logged in - show dashboard content -->
-		{#await getGitHubAppStatus()}
-			<div class="mb-6 flex items-center justify-between">
-				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
-				<Skeleton class="h-9 w-36" />
-			</div>
+
+		{#await fetchGitHubAppStatus()}
+			<!-- Loading app status -->
+		{:then appStatus}
+			{#if !appStatus.isInstalled && appStatus.installUrl}
+				<Alert class="mb-6">
+					<Lock class="size-4" />
+					<AlertTitle>Access Private Repositories</AlertTitle>
+					<AlertDescription class="flex flex-col gap-3">
+						<p>Install the GitHub App to access your private repositories.</p>
+						<Button onclick={handleGitHubAppClick} size="sm" class="w-fit">
+							<Plus class="mr-2 size-4" />
+							Install GitHub App
+						</Button>
+					</AlertDescription>
+				</Alert>
+			{/if}
+		{:catch}
+			<!-- Ignore app status errors -->
+		{/await}
+
+		{#await getRepositories()}
 			<div class="space-y-3">
 				{#each Array.from({ length: 5 }, (_, i) => i) as i (i)}
 					<div class="flex items-center gap-3">
@@ -90,98 +115,64 @@
 					</div>
 				{/each}
 			</div>
-		{:then status}
-			{#if status.isInstalled}
-				<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-					<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
-					{#if status.installUrl}
-						<Button variant="outline" class="w-full sm:w-auto" onclick={handleGitHubAppClick}>
-							<Plus class="size-4" />
-							Add Repositories
-						</Button>
-					{/if}
-				</div>
-
-				{#await getRepositories()}
-					<div class="space-y-3">
-						{#each Array.from({ length: 5 }, (_, i) => i) as i (i)}
-							<div class="flex items-center gap-3">
-								<Skeleton class="h-5 w-48" />
-								<Skeleton class="h-4 w-16" />
-							</div>
-						{/each}
-					</div>
-				{:then repos}
-					{#if repos.length === 0}
-						<p class="text-muted-foreground">No repositories found.</p>
-					{:else}
-						<div class="space-y-3">
-							{#each repos as repo (repo.id)}
-								<a
-									href={`/${repo.fullName}`}
-									class="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted"
-								>
-									{#if repo.isPrivate}
-										<Lock class="size-4 text-muted-foreground" />
-									{/if}
-									<div>
-										<div class="font-medium">{repo.fullName}</div>
-										{#if repo.description}
-											<div class="line-clamp-1 text-sm text-muted-foreground">
-												{repo.description}
-											</div>
-										{/if}
-									</div>
-								</a>
-							{/each}
-						</div>
-					{/if}
-				{:catch error}
-					<Alert variant="destructive">
-						<CircleAlert class="size-4" />
-						<AlertTitle>Error</AlertTitle>
-						<AlertDescription>
-							Failed to load repositories: {error.message}
-						</AlertDescription>
-					</Alert>
-				{/await}
+		{:then repos}
+			{#if repos.length === 0}
+				<p class="text-muted-foreground">No repositories found.</p>
 			{:else}
-				<div class="mb-6 flex items-center justify-between">
-					<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
-				</div>
-
-				<div class="flex flex-col items-center justify-center py-12 sm:py-24">
-					<div class="flex max-w-md flex-col items-center gap-6 text-center">
-						<div class="rounded-full bg-muted p-6">
-							<Github class="size-12 text-muted-foreground" />
-						</div>
-						<div class="space-y-2">
-							<h2 class="text-2xl font-semibold">Connect GitHub</h2>
-							<p class="text-muted-foreground">
-								Install the Gether GitHub App to grant access to your repositories and start
-								collaborating.
-							</p>
-						</div>
-						{#if status.installUrl}
-							<Button size="lg" onclick={handleGitHubAppClick}>
-								<Github class="size-4" />
-								Install GitHub App
-							</Button>
-						{/if}
-					</div>
+				<div class="space-y-2">
+					{#each repos as repo (repo.id)}
+						<a
+							href="/{repo.fullName}"
+							class="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted"
+						>
+							<div class="flex items-center gap-3">
+								<Github class="size-5 text-muted-foreground" />
+								<div>
+									<div class="font-medium">{repo.fullName}</div>
+									{#if repo.description}
+										<div class="text-sm text-muted-foreground line-clamp-1">
+											{repo.description}
+										</div>
+									{/if}
+								</div>
+							</div>
+							<div class="flex items-center gap-2">
+								{#if repo.isPrivate}
+									<Lock class="size-4 text-muted-foreground" />
+								{/if}
+								{#if repo.language}
+									<span class="text-sm text-muted-foreground">{repo.language}</span>
+								{/if}
+							</div>
+						</a>
+					{/each}
 				</div>
 			{/if}
 		{:catch error}
-			<div class="mb-6 flex items-center justify-between">
-				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
-			</div>
 			<Alert variant="destructive">
 				<CircleAlert class="size-4" />
 				<AlertTitle>Error</AlertTitle>
-				<AlertDescription>
-					Failed to check GitHub App status: {error.message}
-				</AlertDescription>
+				<AlertDescription>Failed to load repositories: {error.message}</AlertDescription>
 			</Alert>
 		{/await}
+	{:else}
+		<!-- User is not authenticated -->
+		<div class="flex flex-col items-center justify-center py-12 sm:py-20">
+			<div class="flex max-w-md flex-col items-center gap-6 text-center">
+				<div class="rounded-full bg-muted p-6">
+					<Github class="size-12 text-muted-foreground" />
+				</div>
+				<div class="space-y-2">
+					<h1 class="text-2xl font-bold sm:text-3xl">Welcome to Gether</h1>
+					<p class="text-muted-foreground">
+						Sign in with GitHub to access your repositories and start editing markdown files.
+					</p>
+				</div>
+				<Button onclick={handleSignIn} size="lg">
+					<Github class="mr-2 size-5" />
+					Sign in with GitHub
+				</Button>
+			</div>
+		</div>
 	{/if}
 </div>

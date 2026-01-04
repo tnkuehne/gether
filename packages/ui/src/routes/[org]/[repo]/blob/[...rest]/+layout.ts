@@ -1,12 +1,16 @@
 import type { LayoutLoad } from "./$types";
-import { getRepoBranches, getRepoDefaultBranch, parseBranchAndPath } from "./github";
+import { getBranches, getDefaultBranch, parseBranchAndPath } from "$lib/github-app";
+import { getOctokit, getPublicOctokit } from "$lib/github-auth";
 
 export const load: LayoutLoad = async ({ params }) => {
 	const { org, repo, rest } = params;
 
+	const auth = await getOctokit();
+	const octokit = auth?.octokit ?? getPublicOctokit();
+
 	const [branches, defaultBranch] = await Promise.all([
-		getRepoBranches(org!, repo!),
-		getRepoDefaultBranch(org!, repo!),
+		getBranches(octokit, org!, repo!),
+		getDefaultBranch(octokit, org!, repo!),
 	]);
 
 	let branch = defaultBranch ?? "main";

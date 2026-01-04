@@ -532,6 +532,294 @@ export async function replyToPRComment(
 }
 
 /**
+ * Parse branch and path from a combined path, matching against known branches.
+ * This handles branches with slashes like "user/feature".
+ */
+export function parseBranchAndPath(
+	restPath: string,
+	branches: string[],
+	defaultBranch?: string,
+): { branch: string; path: string } | null {
+	if (!restPath) return null;
+
+	// Sort branches by length descending to match longest first
+	const sortedBranches = [...branches].sort((a, b) => b.length - a.length);
+
+	for (const branch of sortedBranches) {
+		// Check if path starts with this branch name
+		if (restPath === branch) {
+			// Exact match - no file path
+			return { branch, path: "" };
+		}
+		if (restPath.startsWith(branch + "/")) {
+			// Branch followed by path
+			return { branch, path: restPath.slice(branch.length + 1) };
+		}
+	}
+
+	// No branch matched - try using first segment as branch (fallback)
+	const firstSlash = restPath.indexOf("/");
+	if (firstSlash === -1) {
+		// Single segment - assume it's a branch
+		return { branch: restPath, path: "" };
+	}
+
+	// Use default branch if available and path doesn't start with a known branch
+	if (defaultBranch) {
+		return { branch: defaultBranch, path: restPath };
+	}
+
+	// Fallback: first segment is branch, rest is path
+	return {
+		branch: restPath.slice(0, firstSlash),
+		path: restPath.slice(firstSlash + 1),
+	};
+}
+
+/**
+ * Get list of branches for a repository (paginated)
+ */
+export async function getBranches(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+): Promise<string[]> {
+	try {
+		const branches: string[] = [];
+		let page = 1;
+		const perPage = 100;
+
+		// Fetch all branches (paginated)
+		while (true) {
+			const { data } = await octokit.rest.repos.listBranches({
+				owner: org,
+				repo: repo,
+				per_page: perPage,
+				page,
+			});
+
+			branches.push(...data.map((b) => b.name));
+
+			if (data.length < perPage) break;
+			page++;
+		}
+
+		return branches;
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Tree item for file listing
+ */
+export interface TreeItem {
+	type: "file" | "dir";
+	name: string;
+	path: string;
+}
+
+const ALLOWED_EXTENSIONS = [".md", ".mdx", ".svx"];
+
+/**
+ * Get markdown files from a repository tree
+ */
+export async function getRepoFiles(
+	octokit: Octokit,
+	owner: string,
+	repo: string,
+	branch: string,
+): Promise<TreeItem[]> {
+	// Single API call to get entire tree
+	const { data: treeData } = await octokit.rest.git.getTree({
+		owner,
+		repo,
+		tree_sha: branch,
+		recursive: "1",
+	});
+
+	// Filter for markdown files and collect their parent directories
+	const markdownFiles: TreeItem[] = [];
+	const dirsWithMarkdown = new Set<string>();
+
+	for (const item of treeData.tree) {
+		if (item.type === "blob" && item.path) {
+			const hasAllowedExtension = ALLOWED_EXTENSIONS.some((ext) =>
+				item.path!.toLowerCase().endsWith(ext),
+			);
+			if (hasAllowedExtension) {
+				markdownFiles.push({
+					type: "file",
+					name: item.path.split("/").pop()!,
+					path: item.path,
+				});
+
+				// Mark all parent directories as containing markdown
+				const parts = item.path.split("/");
+				for (let i = 1; i < parts.length; i++) {
+					dirsWithMarkdown.add(parts.slice(0, i).join("/"));
+				}
+			}
+		}
+	}
+
+	// Add directory entries for dirs that contain markdown files
+	const dirItems: TreeItem[] = [];
+	for (const dirPath of dirsWithMarkdown) {
+		dirItems.push({
+			type: "dir",
+			name: dirPath.split("/").pop()!,
+			path: dirPath,
+		});
+	}
+
+	// Combine and sort
+	return [...markdownFiles, ...dirItems].sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * Repository info returned from listing
+ */
+export interface Repository {
+	id: number;
+	name: string;
+	fullName: string;
+	description: string | null;
+	isPrivate: boolean;
+	htmlUrl: string;
+	language: string | null;
+	updatedAt: string | null;
+	stars: number;
+}
+
+/**
+ * List repositories for the authenticated user
+ */
+export async function listUserRepositories(octokit: Octokit): Promise<Repository[]> {
+	const { data: repos } = await octokit.rest.repos.listForAuthenticatedUser({
+		sort: "updated",
+		per_page: 100,
+	});
+
+	return repos.map((repo) => ({
+		id: repo.id,
+		name: repo.name,
+		fullName: repo.full_name,
+		description: repo.description,
+		isPrivate: repo.private,
+		htmlUrl: repo.html_url,
+		language: repo.language,
+		updatedAt: repo.updated_at,
+		stars: repo.stargazers_count,
+	}));
+}
+
+/**
+ * Get GitHub App installation status
+ */
+export async function getGitHubAppStatus(accessToken: string): Promise<{
+	isInstalled: boolean;
+	installUrl: string | null;
+}> {
+	const isInstalled = await hasGitHubAppInstalled(accessToken);
+
+	return {
+		isInstalled,
+		installUrl: GITHUB_APP_INSTALL_URL,
+	};
+}
+
+/**
+ * File data returned from fetching file content
+ */
+export interface FileData {
+	content: string;
+	url: string | null;
+	downloadUrl: string | null;
+	sha: string;
+	size: number;
+	name: string;
+}
+
+/**
+ * Result of fetching file content with error handling
+ */
+export interface FileResult {
+	fileData: FileData | null;
+	error: string | null;
+	needsGitHubApp: boolean;
+}
+
+/**
+ * Fetch file content with error handling
+ * Returns a result object with fileData, error message, and needsGitHubApp flag
+ */
+export async function getFileContentWithErrorHandling(
+	octokit: Octokit,
+	org: string,
+	repo: string,
+	path: string,
+	branch: string,
+	isAuthenticated: boolean,
+): Promise<FileResult> {
+	try {
+		const fileData = await fetchFileContent(octokit, org, repo, path, branch);
+		return { fileData, error: null, needsGitHubApp: false };
+	} catch (err: unknown) {
+		const error = err as { status?: number; message?: string };
+		if (error.status === 404) {
+			const needsGitHubApp = isAuthenticated;
+			return {
+				fileData: null,
+				error: needsGitHubApp
+					? "This appears to be a private repository. Install the GitHub App to grant access."
+					: "File or repository not found",
+				needsGitHubApp,
+			};
+		} else if (error.status === 403) {
+			return {
+				fileData: null,
+				error: "Rate limit exceeded or access denied",
+				needsGitHubApp: false,
+			};
+		}
+
+		return {
+			fileData: null,
+			error: error.message || "Failed to fetch file",
+			needsGitHubApp: false,
+		};
+	}
+}
+
+/**
+ * Create a file in a repository
+ */
+export async function createFile(
+	octokit: Octokit,
+	owner: string,
+	repo: string,
+	path: string,
+	content: string,
+	message: string,
+	branch: string,
+): Promise<{ sha?: string; path?: string }> {
+	const { data: fileData } = await octokit.rest.repos.createOrUpdateFileContents({
+		owner,
+		repo,
+		path,
+		message,
+		content: btoa(content),
+		branch,
+	});
+
+	return {
+		sha: fileData.content?.sha,
+		path: fileData.content?.path,
+	};
+}
+
+/**
  * Group comments by file path and line number, respecting reply threading
  * Includes both file-level and line-specific comments
  */
