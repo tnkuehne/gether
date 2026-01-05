@@ -6,8 +6,56 @@
 	import { authClient } from "$lib/auth-client";
 	import { onMount } from "svelte";
 	import CollaborativeCursor from "$lib/components/collaborative-cursor.svelte";
+	import {
+		getGitHubAppStatus,
+		listUserRepositories,
+		GITHUB_APP_INSTALL_URL,
+		type Repository,
+	} from "$lib/github-app";
+	import { requireOctokit } from "$lib/github-auth";
+	import { Alert, AlertDescription, AlertTitle } from "$lib/components/ui/alert";
+	import { Skeleton } from "$lib/components/ui/skeleton";
+	import CircleAlert from "@lucide/svelte/icons/circle-alert";
+	import Github from "@lucide/svelte/icons/github";
+	import Plus from "@lucide/svelte/icons/plus";
 
-	// Animation state
+	// Server-side user data for instant SSR decision
+	let { data } = $props();
+
+	// Dashboard functions
+	async function fetchGitHubAppStatus() {
+		const auth = await requireOctokit();
+		return getGitHubAppStatus(auth.accessToken);
+	}
+
+	async function getRepositories(): Promise<Repository[]> {
+		const auth = await requireOctokit();
+		return listUserRepositories(auth.octokit);
+	}
+
+	async function handleGitHubAppClick() {
+		const response = await authClient.signIn.social({
+			provider: "github",
+			callbackURL: window.location.href,
+			disableRedirect: true,
+		});
+
+		if (response?.data?.url) {
+			const oauthUrl = new URL(response.data.url);
+			const state = oauthUrl.searchParams.get("state");
+
+			window.location.href = `${GITHUB_APP_INSTALL_URL}?state=${state}`;
+		}
+	}
+
+	async function handleSignIn() {
+		await authClient.signIn.social({
+			provider: "github",
+			callbackURL: window.location.href,
+		});
+	}
+
+	// Landing page animation state
 	let timoText = $state("");
 	let maxText = $state("");
 	let showTimoCursor = $state(false);
@@ -60,7 +108,8 @@
 
 	onMount(() => {
 		function tryAnimate() {
-			if (document.visibilityState === "visible" && !hasAnimated) {
+			// Only animate for unauthenticated users
+			if (document.visibilityState === "visible" && !hasAnimated && !data.user) {
 				animate();
 			}
 		}
@@ -85,165 +134,261 @@
 	/>
 </svelte:head>
 
-<div class="min-h-screen bg-background">
-	<!-- Header with GitHub link -->
-	<header class="absolute top-0 right-0 p-4 sm:p-6">
-		<a
-			href="https://github.com/tnkuehne/gether"
-			target="_blank"
-			rel="noopener noreferrer"
-			class="opacity-70 transition-opacity hover:opacity-100"
-			aria-label="View source on GitHub"
-		>
-			<img src={githubMark} alt="GitHub" class="h-8 w-8 dark:hidden" />
-			<img src={githubMarkWhite} alt="GitHub" class="hidden h-8 w-8 dark:block" />
-		</a>
-	</header>
-
-	<main class="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
-		<!-- Hero Section -->
-		<section class="mb-16 text-center">
-			<img src={logo} alt="Gether" class="mx-auto mb-8 h-16 w-16 dark:invert" />
-			<h1 class="mb-4 text-2xl font-semibold text-foreground sm:text-3xl">
-				A collaborative content editor for Git{timoText}{#if showTimoCursor}<CollaborativeCursor
-						name="Timo"
-						color="#3b82f6"
-					/>{/if}
-			</h1>
-			<p class="mb-8 text-muted-foreground">
-				Replace <code class="rounded bg-muted px-1.5 py-0.5 text-sm">github.com</code> with
-				<code class="rounded bg-muted px-1.5 py-0.5 text-sm">gether.md</code> and start editing{maxText}{#if showMaxCursor}<CollaborativeCursor
-						name="Max"
-						color="#10b981"
-					/>{/if}{#if !showMaxCursor && animationComplete}.{/if}
-			</p>
-
-			<!-- URL Example -->
-			<div class="mb-8 rounded-lg bg-muted p-4 text-left font-mono text-sm sm:p-6">
-				<div class="mb-2 text-muted-foreground">
-					<span class="text-muted-foreground/60">github.com</span>/org/repo/blob/main/README.md
-				</div>
-				<div class="mb-2 text-muted-foreground">→</div>
-				<div class="text-foreground">
-					<span class="font-medium text-primary">gether.md</span>/org/repo/blob/main/README.md
-				</div>
+{#if data.user}
+	<!-- Authenticated - show dashboard -->
+	<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
+		{#await fetchGitHubAppStatus()}
+			<div class="mb-6 flex items-center justify-between">
+				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
+				<Skeleton class="h-9 w-36" />
 			</div>
-
-			<div class="mx-auto flex w-fit flex-col items-center gap-4 sm:flex-row">
-				<Button
-					onclick={async () => {
-						await authClient.signIn.social({
-							provider: "github",
-							callbackURL: "/dashboard",
-						});
-					}}
-					size="lg"
-				>
-					Sign in with GitHub
-				</Button>
-				<Button
-					href="https://gether.md/tnkuehne/gether/blob/main/README.md"
-					size="lg"
-					variant="outline"
-				>
-					See it in action
-				</Button>
+			<div class="space-y-3">
+				{#each Array.from({ length: 5 }, (_, i) => i) as i (i)}
+					<div class="flex items-center gap-3">
+						<Skeleton class="h-5 w-48" />
+						<Skeleton class="h-4 w-16" />
+					</div>
+				{/each}
 			</div>
-		</section>
+		{:then status}
+			{#if status.isInstalled}
+				<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
+					{#if status.installUrl}
+						<Button variant="outline" class="w-full sm:w-auto" onclick={handleGitHubAppClick}>
+							<Plus class="size-4" />
+							Add Repositories
+						</Button>
+					{/if}
+				</div>
 
-		<!-- Features -->
-		<section class="mb-16">
-			<h2 class="mb-6 text-lg font-medium text-foreground">Features</h2>
-			<ul class="space-y-3 text-muted-foreground">
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>Real-time collaboration with live cursors</span>
-				</li>
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>Rendered markdown preview</span>
-				</li>
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>Live site preview for static site generators</span>
-				</li>
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>File navigation within repositories</span>
-				</li>
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>Commit directly back to GitHub</span>
-				</li>
-			</ul>
-		</section>
+				{#await getRepositories()}
+					<div class="space-y-3">
+						{#each Array.from({ length: 5 }, (_, i) => i) as i (i)}
+							<div class="flex items-center gap-3">
+								<Skeleton class="h-5 w-48" />
+								<Skeleton class="h-4 w-16" />
+							</div>
+						{/each}
+					</div>
+				{:then repos}
+					{#if repos.length === 0}
+						<p class="text-muted-foreground">No repositories found.</p>
+					{:else}
+						<div class="space-y-3">
+							{#each repos as repo (repo.id)}
+								<a
+									href={`/${repo.fullName}`}
+									class="block rounded-lg border p-3 transition-colors hover:bg-muted"
+								>
+									<div class="font-medium">{repo.fullName}</div>
+									<div class="line-clamp-1 text-sm text-muted-foreground">
+										{repo.description || "\u00A0"}
+									</div>
+								</a>
+							{/each}
+						</div>
+					{/if}
+				{:catch error}
+					<Alert variant="destructive">
+						<CircleAlert class="size-4" />
+						<AlertTitle>Error</AlertTitle>
+						<AlertDescription>
+							Failed to load repositories: {error.message}
+						</AlertDescription>
+					</Alert>
+				{/await}
+			{:else}
+				<div class="mb-6 flex items-center justify-between">
+					<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
+				</div>
 
-		<!-- How it works -->
-		<section class="mb-16">
-			<h2 class="mb-6 text-lg font-medium text-foreground">How it works</h2>
-			<ol class="space-y-4 text-muted-foreground">
-				<li class="flex gap-4">
-					<span
-						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
-						>1</span
-					>
-					<span>Open markdown/mdx file on GitHub</span>
-				</li>
-				<li class="flex gap-4">
-					<span
-						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
-						>2</span
-					>
-					<span
-						>Replace <code class="rounded bg-muted px-1.5 py-0.5 text-xs">github.com</code> with
-						<code class="rounded bg-muted px-1.5 py-0.5 text-xs">gether.md</code></span
-					>
-				</li>
-				<li class="flex gap-4">
-					<span
-						class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
-						>3</span
-					>
-					<span>Edit together with live preview</span>
-				</li>
-			</ol>
-		</section>
+				<div class="flex flex-col items-center justify-center py-12 sm:py-24">
+					<div class="flex max-w-md flex-col items-center gap-6 text-center">
+						<div class="rounded-full bg-muted p-6">
+							<Github class="size-12 text-muted-foreground" />
+						</div>
+						<div class="space-y-2">
+							<h2 class="text-2xl font-semibold">Connect GitHub</h2>
+							<p class="text-muted-foreground">
+								Install the Gether GitHub App to grant access to your repositories and start
+								collaborating.
+							</p>
+						</div>
+						{#if status.installUrl}
+							<Button size="lg" onclick={handleGitHubAppClick}>
+								<Github class="size-4" />
+								Install GitHub App
+							</Button>
+						{/if}
+					</div>
+				</div>
+			{/if}
+		{:catch error}
+			<div class="mb-6 flex items-center justify-between">
+				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
+			</div>
+			<Alert variant="destructive">
+				<CircleAlert class="size-4" />
+				<AlertTitle>Error</AlertTitle>
+				<AlertDescription>
+					Failed to check GitHub App status: {error.message}
+				</AlertDescription>
+			</Alert>
+		{/await}
+	</div>
+{:else}
+	<!-- Not authenticated (or still loading) - show landing page instantly -->
+	<div class="min-h-screen bg-background">
+		<!-- Header with GitHub link -->
+		<header class="absolute top-0 right-0 p-4 sm:p-6">
+			<a
+				href="https://github.com/tnkuehne/gether"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="opacity-70 transition-opacity hover:opacity-100"
+				aria-label="View source on GitHub"
+			>
+				<img src={githubMark} alt="GitHub" class="h-8 w-8 dark:hidden" />
+				<img src={githubMarkWhite} alt="GitHub" class="hidden h-8 w-8 dark:block" />
+			</a>
+		</header>
 
-		<!-- Trust & Safety -->
-		<section class="mb-16">
-			<h2 class="mb-6 text-lg font-medium text-foreground">Trust & safety</h2>
-			<ul class="space-y-3 text-muted-foreground">
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>Uses GitHub OAuth for authentication</span>
-				</li>
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>Requests only the minimal permissions required to commit</span>
-				</li>
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>Commits are made as the authenticated GitHub user</span>
-				</li>
-				<li class="flex gap-3">
-					<span class="text-foreground">•</span>
-					<span>No unnecessary data is stored</span>
-				</li>
-			</ul>
-		</section>
+		<main class="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
+			<!-- Hero Section -->
+			<section class="mb-16 text-center">
+				<img src={logo} alt="Gether" class="mx-auto mb-8 h-16 w-16 dark:invert" />
+				<h1 class="mb-4 text-2xl font-semibold text-foreground sm:text-3xl">
+					A collaborative content editor for Git{timoText}{#if showTimoCursor}<CollaborativeCursor
+							name="Timo"
+							color="#3b82f6"
+						/>{/if}
+				</h1>
+				<p class="mb-8 text-muted-foreground">
+					Replace <code class="rounded bg-muted px-1.5 py-0.5 text-sm">github.com</code> with
+					<code class="rounded bg-muted px-1.5 py-0.5 text-sm">gether.md</code> and start editing{maxText}{#if showMaxCursor}<CollaborativeCursor
+							name="Max"
+							color="#10b981"
+						/>{/if}{#if !showMaxCursor && animationComplete}.{/if}
+				</p>
 
-		<!-- Open Source -->
-		<section>
-			<h2 class="mb-4 text-lg font-medium text-foreground">Open source</h2>
-			<p class="text-muted-foreground">
-				Fully open source. <a
-					href="https://github.com/tnkuehne/gether"
-					target="_blank"
-					rel="noopener noreferrer"
-					class="text-foreground underline underline-offset-4 hover:text-primary"
-					>View the source code on GitHub</a
-				>.
-			</p>
-		</section>
-	</main>
-</div>
+				<!-- URL Example -->
+				<div class="mb-8 rounded-lg bg-muted p-4 text-left font-mono text-sm sm:p-6">
+					<div class="mb-2 text-muted-foreground">
+						<span class="text-muted-foreground/60">github.com</span>/org/repo/blob/main/README.md
+					</div>
+					<div class="mb-2 text-muted-foreground">→</div>
+					<div class="text-foreground">
+						<span class="font-medium text-primary">gether.md</span>/org/repo/blob/main/README.md
+					</div>
+				</div>
+
+				<div class="mx-auto flex w-fit flex-col items-center gap-4 sm:flex-row">
+					<Button onclick={handleSignIn} size="lg">Sign in with GitHub</Button>
+					<Button
+						href="https://gether.md/tnkuehne/gether/blob/main/README.md"
+						size="lg"
+						variant="outline"
+					>
+						See it in action
+					</Button>
+				</div>
+			</section>
+
+			<!-- Features -->
+			<section class="mb-16">
+				<h2 class="mb-6 text-lg font-medium text-foreground">Features</h2>
+				<ul class="space-y-3 text-muted-foreground">
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>Real-time collaboration with live cursors</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>Rendered markdown preview</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>Live site preview for static site generators</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>File navigation within repositories</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>Commit directly back to GitHub</span>
+					</li>
+				</ul>
+			</section>
+
+			<!-- How it works -->
+			<section class="mb-16">
+				<h2 class="mb-6 text-lg font-medium text-foreground">How it works</h2>
+				<ol class="space-y-4 text-muted-foreground">
+					<li class="flex gap-4">
+						<span
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
+							>1</span
+						>
+						<span>Open markdown/mdx file on GitHub</span>
+					</li>
+					<li class="flex gap-4">
+						<span
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
+							>2</span
+						>
+						<span
+							>Replace <code class="rounded bg-muted px-1.5 py-0.5 text-xs">github.com</code> with
+							<code class="rounded bg-muted px-1.5 py-0.5 text-xs">gether.md</code></span
+						>
+					</li>
+					<li class="flex gap-4">
+						<span
+							class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground"
+							>3</span
+						>
+						<span>Edit together with live preview</span>
+					</li>
+				</ol>
+			</section>
+
+			<!-- Trust & Safety -->
+			<section class="mb-16">
+				<h2 class="mb-6 text-lg font-medium text-foreground">Trust & safety</h2>
+				<ul class="space-y-3 text-muted-foreground">
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>Uses GitHub OAuth for authentication</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>Requests only the minimal permissions required to commit</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>Commits are made as the authenticated GitHub user</span>
+					</li>
+					<li class="flex gap-3">
+						<span class="text-foreground">•</span>
+						<span>No unnecessary data is stored</span>
+					</li>
+				</ul>
+			</section>
+
+			<!-- Open Source -->
+			<section>
+				<h2 class="mb-4 text-lg font-medium text-foreground">Open source</h2>
+				<p class="text-muted-foreground">
+					Fully open source. <a
+						href="https://github.com/tnkuehne/gether"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-foreground underline underline-offset-4 hover:text-primary"
+						>View the source code on GitHub</a
+					>.
+				</p>
+			</section>
+		</main>
+	</div>
+{/if}
