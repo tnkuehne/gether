@@ -133,23 +133,7 @@
 	/>
 </svelte:head>
 
-{#if $session.isPending}
-	<!-- Loading session state - show dashboard skeleton -->
-	<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
-		<div class="mb-6 flex items-center justify-between">
-			<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>
-			<Skeleton class="h-9 w-36" />
-		</div>
-		<div class="space-y-3">
-			{#each Array.from({ length: 5 }, (_, i) => i) as i (i)}
-				<div class="flex items-center gap-3">
-					<Skeleton class="h-5 w-48" />
-					<Skeleton class="h-4 w-16" />
-				</div>
-			{/each}
-		</div>
-	</div>
-{:else if $session.data}
+{#if $session.data}
 	<!-- Authenticated - show dashboard -->
 	<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
 		{#await fetchGitHubAppStatus()}
@@ -253,7 +237,7 @@
 		{/await}
 	</div>
 {:else}
-	<!-- Not authenticated - show landing page -->
+	<!-- Not authenticated (or still loading) - show landing page instantly -->
 	<div class="min-h-screen bg-background">
 		<!-- Header with GitHub link -->
 		<header class="absolute top-0 right-0 p-4 sm:p-6">
