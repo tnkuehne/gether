@@ -592,11 +592,7 @@ export function parseBranchAndPath(
 /**
  * Get list of branches for a repository (paginated)
  */
-export async function getBranches(
-	octokit: Octokit,
-	org: string,
-	repo: string,
-): Promise<string[]> {
+export async function getBranches(octokit: Octokit, org: string, repo: string): Promise<string[]> {
 	try {
 		const branches: string[] = [];
 		let page = 1;

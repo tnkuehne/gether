@@ -51,7 +51,12 @@
 	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
 
 	// Helper functions that compose auth + lib functions
-	async function getFileContent(org: string, repo: string, path: string, branch: string): Promise<FileResult> {
+	async function getFileContent(
+		org: string,
+		repo: string,
+		path: string,
+		branch: string,
+	): Promise<FileResult> {
 		const auth = await getOctokit();
 		const octokit = auth?.octokit ?? getPublicOctokit();
 		return getFileContentWithErrorHandling(octokit, org, repo, path, branch, !!auth);
@@ -117,7 +122,12 @@
 		}
 	}
 
-	async function checkExistingPR(org: string, repo: string, headBranch: string, headOwner?: string): Promise<PullRequestInfo | null> {
+	async function checkExistingPR(
+		org: string,
+		repo: string,
+		headBranch: string,
+		headOwner?: string,
+	): Promise<PullRequestInfo | null> {
 		const auth = await getOctokit();
 		if (!auth) return null;
 		try {
@@ -132,17 +142,31 @@
 		return forkRepository(octokit, org, repo);
 	}
 
-	async function doCreateBranch(org: string, repo: string, branchName: string, sourceBranch: string): Promise<string> {
+	async function doCreateBranch(
+		org: string,
+		repo: string,
+		branchName: string,
+		sourceBranch: string,
+	): Promise<string> {
 		const { octokit } = await requireOctokit();
 		return createBranch(octokit, org, repo, branchName, sourceBranch);
 	}
 
-	async function doCreatePullRequest(org: string, repo: string, params: { title: string; body?: string; head: string; base: string; draft?: boolean }): Promise<PullRequestInfo> {
+	async function doCreatePullRequest(
+		org: string,
+		repo: string,
+		params: { title: string; body?: string; head: string; base: string; draft?: boolean },
+	): Promise<PullRequestInfo> {
 		const { octokit } = await requireOctokit();
 		return createPullRequest(octokit, org, repo, params);
 	}
 
-	async function getPRCommentsForFile(org: string, repo: string, prNumber: number, filePath: string): Promise<Map<number, PRCommentThread>> {
+	async function getPRCommentsForFile(
+		org: string,
+		repo: string,
+		prNumber: number,
+		filePath: string,
+	): Promise<Map<number, PRCommentThread>> {
 		const auth = await getOctokit();
 		if (!auth) return new Map();
 		try {
@@ -153,12 +177,23 @@
 		}
 	}
 
-	async function doCreatePRComment(org: string, repo: string, prNumber: number, params: { body: string; path: string; line: number; commitId: string; side?: "LEFT" | "RIGHT" }) {
+	async function doCreatePRComment(
+		org: string,
+		repo: string,
+		prNumber: number,
+		params: { body: string; path: string; line: number; commitId: string; side?: "LEFT" | "RIGHT" },
+	) {
 		const { octokit } = await requireOctokit();
 		return createPRComment(octokit, org, repo, prNumber, params);
 	}
 
-	async function doReplyToPRComment(org: string, repo: string, prNumber: number, commentId: number, body: string) {
+	async function doReplyToPRComment(
+		org: string,
+		repo: string,
+		prNumber: number,
+		commentId: number,
+		body: string,
+	) {
 		const { octokit } = await requireOctokit();
 		return replyToPRComment(octokit, org, repo, prNumber, commentId, body);
 	}
