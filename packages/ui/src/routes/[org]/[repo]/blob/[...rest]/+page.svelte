@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from "$app/state";
-	import { Badge } from "$lib/components/ui/badge";
 	import { Button, buttonVariants } from "$lib/components/ui/button";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
@@ -363,6 +362,8 @@
 
 	// Commit dialog state
 	let commitDialogOpen = $state(false);
+	let signInPromptOpen = $state(false);
+	let readOnlyPromptOpen = $state(false);
 	let commitMessage = $state("");
 	let isCommitting = $state(false);
 	let commitError = $state<string | null>(null);
@@ -870,6 +871,16 @@
 		return colors[Math.abs(hash) % colors.length];
 	}
 
+	function handleEditBlocked() {
+		if (!$session.data) {
+			// User is not logged in
+			signInPromptOpen = true;
+		} else if (!canEdit) {
+			// User is logged in but doesn't have write permission
+			readOnlyPromptOpen = true;
+		}
+	}
+
 	function handleReset() {
 		if (
 			confirm(
@@ -1104,13 +1115,6 @@
 		{:else if fileResult.fileData}
 			<!-- Toolbar -->
 			<div class="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
-				{#await canEditPromise then canEditResult}
-					{#if $session.data && !canEditResult}
-						<Badge variant="secondary">Read-only</Badge>
-					{:else if !$session.data}
-						<Badge variant="outline" class="text-muted-foreground">Sign in to edit</Badge>
-					{/if}
-				{/await}
 				{#if isMarkdown || sandboxStatus === "running"}
 					<!-- Mobile: toggle between code and preview -->
 					<div class="flex items-center rounded-md border sm:hidden">
@@ -1291,6 +1295,7 @@
 													);
 												}}
 												oncursorchange={handleCursorChange}
+												oneditblocked={handleEditBlocked}
 												remoteCursors={Array.from(remoteCursors.values())}
 												remoteSelections={Array.from(remoteSelections.values())}
 												{prComments}
@@ -1353,6 +1358,7 @@
 												);
 											}}
 											oncursorchange={handleCursorChange}
+											oneditblocked={handleEditBlocked}
 											remoteCursors={Array.from(remoteCursors.values())}
 											remoteSelections={Array.from(remoteSelections.values())}
 											{prComments}
@@ -1405,6 +1411,7 @@
 										);
 									}}
 									oncursorchange={handleCursorChange}
+									oneditblocked={handleEditBlocked}
 									remoteCursors={Array.from(remoteCursors.values())}
 									remoteSelections={Array.from(remoteSelections.values())}
 									{prComments}
@@ -1698,6 +1705,59 @@
 			</Button>
 			<Button onclick={handleCommit} disabled={!commitMessage.trim() || isCommitting}>
 				{isCommitting ? "Committing..." : "Commit"}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={signInPromptOpen}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Sign in to edit</Dialog.Title>
+			<Dialog.Description>
+				Sign in with GitHub to edit this file and contribute to the project.
+			</Dialog.Description>
+		</Dialog.Header>
+		<Dialog.Footer class="flex-col gap-2 sm:flex-row">
+			<Button
+				variant="outline"
+				onclick={() => {
+					signInPromptOpen = false;
+				}}
+			>
+				Cancel
+			</Button>
+			<Button
+				onclick={async () => {
+					await authClient.signIn.social({
+						provider: "github",
+						callbackURL: window.location.href,
+					});
+				}}
+			>
+				Sign in with GitHub
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={readOnlyPromptOpen}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Read-only access</Dialog.Title>
+			<Dialog.Description>
+				You don't have write access to this repository. Fork it to make changes and submit a pull
+				request.
+			</Dialog.Description>
+		</Dialog.Header>
+		<Dialog.Footer>
+			<Button
+				variant="outline"
+				onclick={() => {
+					readOnlyPromptOpen = false;
+				}}
+			>
+				Close
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
