@@ -19,7 +19,8 @@
 	import Github from "@lucide/svelte/icons/github";
 	import Plus from "@lucide/svelte/icons/plus";
 
-	const session = authClient.useSession();
+	// Server-side user data for instant SSR decision
+	let { data } = $props();
 
 	// Dashboard functions
 	async function fetchGitHubAppStatus() {
@@ -108,7 +109,7 @@
 	onMount(() => {
 		function tryAnimate() {
 			// Only animate for unauthenticated users
-			if (document.visibilityState === "visible" && !hasAnimated && !$session.data) {
+			if (document.visibilityState === "visible" && !hasAnimated && !data.user) {
 				animate();
 			}
 		}
@@ -133,7 +134,7 @@
 	/>
 </svelte:head>
 
-{#if $session.data}
+{#if data.user}
 	<!-- Authenticated - show dashboard -->
 	<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
 		{#await fetchGitHubAppStatus()}
