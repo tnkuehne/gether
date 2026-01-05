@@ -34,6 +34,7 @@
 			| ((position: number, selection?: { from: number; to: number }) => void)
 			| undefined,
 		onselectionchange = undefined as ((selection: SelectionInfo | null) => void) | undefined,
+		oneditblocked = undefined as (() => void) | undefined,
 		remoteCursors = [] as RemoteCursor[],
 		remoteSelections = [] as RemoteSelection[],
 		prComments = new Map() as Map<number, PRCommentThread>,
@@ -45,6 +46,7 @@
 		onchange?: (value: string) => void;
 		oncursorchange?: (position: number, selection?: { from: number; to: number }) => void;
 		onselectionchange?: (selection: SelectionInfo | null) => void;
+		oneditblocked?: () => void;
 		remoteCursors?: RemoteCursor[];
 		remoteSelections?: RemoteSelection[];
 		prComments?: Map<number, PRCommentThread>;
@@ -257,6 +259,54 @@
 		};
 	}
 
+	// Track if we've recently notified about blocked edits to avoid spamming
+	let lastEditBlockedNotification = 0;
+	const EDIT_BLOCKED_DEBOUNCE_MS = 2000;
+
+	// Helper to check if a key event is an edit attempt
+	function isEditKeyEvent(event: KeyboardEvent): boolean {
+		// Ignore modifier-only keys and navigation keys
+		if (
+			event.key === "Control" ||
+			event.key === "Alt" ||
+			event.key === "Shift" ||
+			event.key === "Meta" ||
+			event.key === "Escape" ||
+			event.key === "Tab" ||
+			event.key === "ArrowUp" ||
+			event.key === "ArrowDown" ||
+			event.key === "ArrowLeft" ||
+			event.key === "ArrowRight" ||
+			event.key === "Home" ||
+			event.key === "End" ||
+			event.key === "PageUp" ||
+			event.key === "PageDown"
+		) {
+			return false;
+		}
+
+		// Allow Ctrl/Cmd + C (copy) and other non-editing shortcuts
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") {
+			return false;
+		}
+
+		// Printable characters, backspace, delete, enter are edit attempts
+		return (
+			event.key.length === 1 ||
+			event.key === "Backspace" ||
+			event.key === "Delete" ||
+			event.key === "Enter"
+		);
+	}
+
+	function notifyEditBlocked() {
+		const now = Date.now();
+		if (now - lastEditBlockedNotification > EDIT_BLOCKED_DEBOUNCE_MS) {
+			lastEditBlockedNotification = now;
+			oneditblocked?.();
+		}
+	}
+
 	function initializeEditor(container: HTMLDivElement) {
 		const state = EditorState.create({
 			doc: "",
@@ -291,6 +341,7 @@
 						}
 					}
 				}),
+
 				EditorView.theme({
 					"&": {
 						fontSize: "14px",
@@ -397,7 +448,45 @@
 			}
 		});
 
+		// Add direct DOM event listeners for detecting edit attempts in readonly mode
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (readonly && isEditKeyEvent(event)) {
+				notifyEditBlocked();
+			}
+		};
+
+		const handlePaste = () => {
+			if (readonly) {
+				notifyEditBlocked();
+			}
+		};
+
+		const handleClick = () => {
+			// When user clicks in readonly mode, listen for the next keypress
+			// to detect edit attempts (since the editor doesn't receive focus in readonly mode)
+			if (readonly) {
+				const docKeyHandler = (event: KeyboardEvent) => {
+					if (isEditKeyEvent(event)) {
+						notifyEditBlocked();
+					}
+					document.removeEventListener("keydown", docKeyHandler);
+				};
+				document.addEventListener("keydown", docKeyHandler, { once: true });
+				// Clean up after 5 seconds if no keypress
+				setTimeout(() => {
+					document.removeEventListener("keydown", docKeyHandler);
+				}, 5000);
+			}
+		};
+
+		container.addEventListener("keydown", handleKeyDown);
+		container.addEventListener("paste", handlePaste);
+		container.addEventListener("click", handleClick);
+
 		return () => {
+			container.removeEventListener("keydown", handleKeyDown);
+			container.removeEventListener("paste", handlePaste);
+			container.removeEventListener("click", handleClick);
 			editorView?.destroy();
 			editorView = null;
 		};

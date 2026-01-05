@@ -363,6 +363,7 @@
 
 	// Commit dialog state
 	let commitDialogOpen = $state(false);
+	let signInPromptOpen = $state(false);
 	let commitMessage = $state("");
 	let isCommitting = $state(false);
 	let commitError = $state<string | null>(null);
@@ -870,6 +871,13 @@
 		return colors[Math.abs(hash) % colors.length];
 	}
 
+	function handleEditBlocked() {
+		// Only show sign-in prompt if user is not logged in
+		if (!$session.data) {
+			signInPromptOpen = true;
+		}
+	}
+
 	function handleReset() {
 		if (
 			confirm(
@@ -1291,6 +1299,7 @@
 													);
 												}}
 												oncursorchange={handleCursorChange}
+												oneditblocked={handleEditBlocked}
 												remoteCursors={Array.from(remoteCursors.values())}
 												remoteSelections={Array.from(remoteSelections.values())}
 												{prComments}
@@ -1353,6 +1362,7 @@
 												);
 											}}
 											oncursorchange={handleCursorChange}
+											oneditblocked={handleEditBlocked}
 											remoteCursors={Array.from(remoteCursors.values())}
 											remoteSelections={Array.from(remoteSelections.values())}
 											{prComments}
@@ -1405,6 +1415,7 @@
 										);
 									}}
 									oncursorchange={handleCursorChange}
+									oneditblocked={handleEditBlocked}
 									remoteCursors={Array.from(remoteCursors.values())}
 									remoteSelections={Array.from(remoteSelections.values())}
 									{prComments}
@@ -1698,6 +1709,37 @@
 			</Button>
 			<Button onclick={handleCommit} disabled={!commitMessage.trim() || isCommitting}>
 				{isCommitting ? "Committing..." : "Commit"}
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={signInPromptOpen}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Sign in to edit</Dialog.Title>
+			<Dialog.Description>
+				Sign in with GitHub to edit this file and contribute to the project.
+			</Dialog.Description>
+		</Dialog.Header>
+		<Dialog.Footer class="flex-col gap-2 sm:flex-row">
+			<Button
+				variant="outline"
+				onclick={() => {
+					signInPromptOpen = false;
+				}}
+			>
+				Cancel
+			</Button>
+			<Button
+				onclick={async () => {
+					await authClient.signIn.social({
+						provider: "github",
+						callbackURL: window.location.href,
+					});
+				}}
+			>
+				Sign in with GitHub
 			</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
