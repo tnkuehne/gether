@@ -45,6 +45,7 @@
 	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from "$lib/components/ui/resizable";
 	import * as Tooltip from "$lib/components/ui/tooltip";
 	import { Streamdown } from "svelte-streamdown";
+	import Mermaid from "svelte-streamdown/mermaid";
 	import posthog from "posthog-js";
 	import { startPreview, getSandboxStatus, syncFileToSandbox } from "./sandbox.remote";
 	import { parseFrontmatter, combineDocument, type FrontmatterField } from "$lib/frontmatter";
@@ -1322,6 +1323,7 @@
 										<Streamdown
 											content={hasFrontmatter ? bodyContent : content}
 											baseTheme="shadcn"
+											components={{ mermaid: Mermaid }}
 										/>
 									</div>
 								{:else if sandboxStatus === "running" && previewUrl}
@@ -1379,7 +1381,11 @@
 							></iframe>
 						{:else if isMarkdown}
 							<div class="min-h-[50vh] overflow-auto bg-background p-4">
-								<Streamdown content={hasFrontmatter ? bodyContent : content} baseTheme="shadcn" />
+								<Streamdown
+									content={hasFrontmatter ? bodyContent : content}
+									baseTheme="shadcn"
+									components={{ mermaid: Mermaid }}
+								/>
 							</div>
 						{:else if sandboxStatus === "running" && previewUrl}
 							<iframe
