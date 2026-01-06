@@ -346,6 +346,9 @@
 					"&": {
 						fontSize: "14px",
 					},
+					".cm-gutters": {
+						display: "none",
+					},
 					".cm-scroller": {
 						fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 						lineHeight: "1.5",
@@ -412,6 +415,9 @@
 						EditorView.theme({
 							"&": {
 								fontSize: "14px",
+							},
+							".cm-gutters": {
+								display: "none",
 							},
 							".cm-scroller": {
 								fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
