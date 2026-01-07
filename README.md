@@ -58,6 +58,8 @@ Add config File `gether.jsonc`
 
 ## Deploy your own
 
+You can use a hosted version at [gether.md](https://gether.md) or deploy your own instance following this guide:
+
 1. Create a [GitHub App](https://docs.github.com/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) with repository contents `read & write` and account email `read`.
 2. Each service in `packages` needs to be deployed to Cloudflare workers.
 3. For the UI worker the following secrets/variables need to be set: [`BETTER_AUTH_SECRET`](https://www.better-auth.com/docs/installation#set-environment-variables), `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `PUBLIC_GITHUB_APP_ID` and `PUBLIC_GITHUB_APP_SLUG`.
@@ -69,3 +71,5 @@ Heavily inspired by
 
 - Lee Robinson article about [Coding Agents & Complexity Budgets](https://leerob.com/agents)
 - Knut Melvær's answer to Lee Robinson's [“You should never build a CMS”](https://www.sanity.io/blog/you-should-never-build-a-cms)
+
+If you would like to know more about why and how, I wrote down my thoughts in a [blog post](https://timokuehne.com/articles/collaborative-real-time-content-editor).
