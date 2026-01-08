@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
 
-const FAVICON_SIZE = 48;
+const FAVICON_SIZE = 144;
 
 export function faviconPlugin(): Plugin {
 	return {
