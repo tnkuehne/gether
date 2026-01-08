@@ -209,9 +209,10 @@
 	let repo = $derived(page.params.repo);
 
 	// Branch and path come from load function (re-runs on navigation)
-	let branch = $derived(data.branch);
-	let path = $derived(data.path);
-	let defaultBranch = $derived(data.defaultBranch);
+	// Use optional chaining to protect against null data during reactive updates
+	let branch = $derived(data?.branch ?? "");
+	let path = $derived(data?.path ?? "");
+	let defaultBranch = $derived(data?.defaultBranch);
 
 	// Check if file is markdown (derived from path state)
 	let isMarkdown = $derived(
@@ -228,12 +229,13 @@
 	const session = authClient.useSession();
 
 	// Fetch data using promises chained after init
-	const filePromise = getFileContent(org!, repo!, data.path, data.branch);
+	// Use optional chaining to protect against null data
+	const filePromise = getFileContent(org!, repo!, data?.path ?? "", data?.branch ?? "");
 	const canEditPromise = getCanEdit(org!, repo!);
-	const getherConfigPromise = getGetherConfig(org!, repo!, data.branch);
+	const getherConfigPromise = getGetherConfig(org!, repo!, data?.branch ?? "");
 
 	// Contribution workflow data promises
-	const branchProtectedPromise = getIsBranchProtected(org!, repo!, data.branch);
+	const branchProtectedPromise = getIsBranchProtected(org!, repo!, data?.branch ?? "");
 	const currentUserPromise = getCurrentUser();
 	const existingForkPromise = checkUserFork(org!, repo!);
 
@@ -411,6 +413,9 @@
 	// Watch for data changes (file switching via sidebar triggers load function re-run)
 	let lastPath = $state<string | undefined>(undefined);
 	$effect(() => {
+		// Guard against null data during reactive updates
+		if (!data) return;
+
 		// Skip initial load
 		if (lastPath === undefined) {
 			lastPath = data.path;
