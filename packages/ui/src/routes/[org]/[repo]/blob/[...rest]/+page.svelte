@@ -44,6 +44,7 @@
 	import { getOctokit, getPublicOctokit, requireOctokit } from "$lib/github-auth";
 	import { ResizablePaneGroup, ResizablePane, ResizableHandle } from "$lib/components/ui/resizable";
 	import * as Tooltip from "$lib/components/ui/tooltip";
+	import { ConnectionIndicator } from "$lib/components/ui/connection-indicator";
 	import { Streamdown } from "svelte-streamdown";
 	import Mermaid from "svelte-streamdown/mermaid";
 	import posthog from "posthog-js";
@@ -339,6 +340,7 @@
 	let content = $state("");
 	let originalContent = $state("");
 	let ws = $state<WebSocket | null>(null);
+	let wsConnectionStatus = $state<"connected" | "connecting" | "disconnected">("disconnected");
 	let isRemoteUpdate = $state(false);
 	let lastValue = $state("");
 	let hasStartedEditing = $state(false);
@@ -668,9 +670,11 @@
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
 
+		wsConnectionStatus = "connecting";
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {
+			wsConnectionStatus = "connected";
 			ws?.send(JSON.stringify({ type: "init", content: content }));
 		};
 
@@ -749,6 +753,7 @@
 		};
 
 		ws.onclose = () => {
+			wsConnectionStatus = "disconnected";
 			// Only reconnect if still logged in
 			if ($session.data) {
 				setTimeout(connect, 2000);
@@ -756,6 +761,7 @@
 		};
 
 		ws.onerror = (error) => {
+			wsConnectionStatus = "disconnected";
 			console.error("WebSocket error:", error);
 		};
 	}
@@ -1264,6 +1270,13 @@
 							</Button>
 						{/if}
 					{/await}
+				{/if}
+
+				<!-- Connection status indicator (shown for logged-in users) -->
+				{#if $session.data}
+					<div class="ml-auto">
+						<ConnectionIndicator status={wsConnectionStatus} />
+					</div>
 				{/if}
 			</div>
 
