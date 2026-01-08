@@ -25,6 +25,8 @@ export const load: LayoutLoad = async ({ params }) => {
 	}
 
 	return {
+		org: org!,
+		repo: repo!,
 		branch,
 		path,
 		branches,

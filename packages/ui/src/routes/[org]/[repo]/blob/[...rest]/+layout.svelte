@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from "$app/state";
 	import { SvelteMap, SvelteSet } from "svelte/reactivity";
 	import type { Snippet } from "svelte";
 	import { authClient } from "$lib/auth-client";
@@ -25,8 +24,10 @@
 
 	let { children, data }: { children: Snippet; data: LayoutData } = $props();
 
-	const org = page.params.org!;
-	const repo = page.params.repo!;
+	// Use org and repo from load function data, not page.params
+	// This ensures values are available on client-side navigation from homepage
+	let org = $derived(data.org);
+	let repo = $derived(data.repo);
 	const session = authClient.useSession();
 
 	// Use branch and path from load function
