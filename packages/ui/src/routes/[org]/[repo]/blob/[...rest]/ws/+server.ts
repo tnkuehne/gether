@@ -13,8 +13,7 @@ export const GET: RequestHandler = async ({ params, platform, request, locals })
 		return new Response(`429 Failure – rate limit exceeded`, { status: 429 });
 	}
 
-	const { org, repo, branch } = params;
-	const path = params.path;
+	const { org, repo, rest } = params;
 
 	// Check for WebSocket upgrade
 	const upgradeHeader = request.headers.get("Upgrade");
@@ -50,7 +49,8 @@ export const GET: RequestHandler = async ({ params, platform, request, locals })
 	}
 
 	// Create deterministic ID from file path
-	const docId = `${org}/${repo}/${branch}/${path}`;
+	// rest contains the full path including branch, e.g., "main/folder/file.md"
+	const docId = `${org}/${repo}/${rest}`;
 
 	// Get Durable Object for this specific document
 	const id = platform!.env.COLLAB_DOCUMENT.idFromName(docId);

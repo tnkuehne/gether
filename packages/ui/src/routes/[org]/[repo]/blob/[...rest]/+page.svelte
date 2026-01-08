@@ -687,10 +687,19 @@
 						myConnectionId = data.connectionId;
 					}
 
-					if (data.content) {
+					// Sync to server content if it differs (collaborative changes on reload)
+					if (data.content !== undefined && data.content !== content) {
 						isRemoteUpdate = true;
 						content = data.content;
 						lastValue = data.content;
+
+						// Update all editor state to reflect server content
+						const parsed = parseFrontmatter(data.content);
+						hasFrontmatter = parsed.hasFrontmatter;
+						frontmatterFields = parsed.frontmatter;
+						bodyContent = parsed.content;
+						editorContent = parsed.hasFrontmatter ? parsed.content : data.content;
+
 						isRemoteUpdate = false;
 					}
 					break;
