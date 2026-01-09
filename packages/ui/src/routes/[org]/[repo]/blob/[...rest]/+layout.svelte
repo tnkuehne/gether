@@ -40,29 +40,35 @@
 	let searchQuery = $state("");
 	let expandedDirs = new SvelteSet<string>();
 
-	// Initialize files on load
-	const initPromise = (async () => {
-		const auth = await getOctokit();
-		const octokit = auth?.octokit ?? getPublicOctokit();
-		return getRepoFiles(octokit, org, repo, data.branch);
-	})()
-		.then((result) => {
-			files = result;
-			// Expand directories that contain the current file
-			if (path) {
-				const pathParts = path.split("/");
-				for (let i = 1; i < pathParts.length; i++) {
-					expandedDirs.add(pathParts.slice(0, i).join("/"));
+	// Initialize files on load - using $derived to properly capture reactive data
+	const initPromise = $derived(
+		(async () => {
+			const auth = await getOctokit();
+			const octokit = auth?.octokit ?? getPublicOctokit();
+			return getRepoFiles(octokit, data.org, data.repo, data.branch);
+		})(),
+	);
+
+	// Load files when initPromise changes
+	$effect(() => {
+		isLoadingFiles = true;
+		initPromise
+			.then((result) => {
+				files = result;
+				// Expand directories that contain the current file
+				if (path) {
+					const pathParts = path.split("/");
+					for (let i = 1; i < pathParts.length; i++) {
+						expandedDirs.add(pathParts.slice(0, i).join("/"));
+					}
 				}
-			}
-			isLoadingFiles = false;
-			return result;
-		})
-		.catch(() => {
-			files = [];
-			isLoadingFiles = false;
-			return [];
-		});
+				isLoadingFiles = false;
+			})
+			.catch(() => {
+				files = [];
+				isLoadingFiles = false;
+			});
+	});
 
 	// Filter files based on search query, including ancestor directories
 	let filteredFiles = $derived.by(() => {
