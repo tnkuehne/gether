@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from "$app/state";
 	import { Button, buttonVariants } from "$lib/components/ui/button";
 	import { Separator } from "$lib/components/ui/separator";
 	import { Skeleton } from "$lib/components/ui/skeleton";
@@ -204,11 +203,10 @@
 
 	let { data }: PageProps = $props();
 
-	// Use derived values for reactive route parameters
-	let org = $derived(page.params.org);
-	let repo = $derived(page.params.repo);
-
-	// Branch and path come from load function (re-runs on navigation)
+	// All route parameters come from the load function to ensure they're available
+	// immediately during client-side navigation (page.params may lag behind)
+	let org = $derived(data.org);
+	let repo = $derived(data.repo);
 	let branch = $derived(data.branch);
 	let path = $derived(data.path);
 	let defaultBranch = $derived(data.defaultBranch);

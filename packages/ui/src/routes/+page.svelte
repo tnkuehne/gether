@@ -285,11 +285,7 @@
 
 				<div class="mx-auto flex w-fit flex-col items-center gap-4 sm:flex-row">
 					<Button onclick={handleSignIn} size="lg">Sign in with GitHub</Button>
-					<Button
-						href="https://gether.md/tnkuehne/gether/blob/main/README.md"
-						size="lg"
-						variant="outline"
-					>
+					<Button href="/tnkuehne/gether/blob/main/README.md" size="lg" variant="outline">
 						See it in action
 					</Button>
 				</div>
