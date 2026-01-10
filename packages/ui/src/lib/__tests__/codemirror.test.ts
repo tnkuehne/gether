@@ -119,58 +119,6 @@ describe("CodeMirror", () => {
 		expect(cmContent?.textContent).toContain("bold");
 	});
 
-	it("handles empty remoteCursors and remoteSelections", async () => {
-		const { container } = render(CodeMirror, {
-			props: {
-				value: "Test content",
-				remoteCursors: [],
-				remoteSelections: [],
-			},
-		});
-
-		await vi.waitFor(() => {
-			const cmContent = container.querySelector(".cm-content");
-			expect(cmContent).not.toBeNull();
-		});
-	});
-
-	it("handles remote cursors with position and color", async () => {
-		const { container } = render(CodeMirror, {
-			props: {
-				value: "Hello World",
-				remoteCursors: [
-					{ position: 5, color: "#ff0000", userName: "Alice" },
-					{ position: 8, color: "#00ff00", userName: "Bob" },
-				],
-			},
-		});
-
-		await vi.waitFor(() => {
-			const cmContent = container.querySelector(".cm-content");
-			expect(cmContent).not.toBeNull();
-		});
-
-		// Remote cursors should be rendered as decorations
-		// This is a basic test - remote cursor widgets are created via CodeMirror extensions
-	});
-
-	it("handles remote selections array prop", async () => {
-		// Test that the component accepts remoteSelections prop
-		// Note: Remote selections are applied via CodeMirror state effects after initialization
-		const { container } = render(CodeMirror, {
-			props: {
-				value: "Select this text here for testing",
-				remoteSelections: [], // Start with empty, selections applied via effects
-			},
-		});
-
-		await vi.waitFor(() => {
-			const cmContent = container.querySelector(".cm-content");
-			expect(cmContent).not.toBeNull();
-			expect(cmContent?.textContent).toContain("Select this text");
-		});
-	});
-
 	it("updates content when value prop changes", async () => {
 		const { container, rerender } = render(CodeMirror, {
 			props: {
@@ -191,4 +139,7 @@ describe("CodeMirror", () => {
 			expect(cmContent?.textContent).toContain("Updated content");
 		});
 	});
+
+	// Note: Remote cursor/selection tests removed as they are now handled
+	// by Yjs awareness protocol via y-codemirror.next extension
 });

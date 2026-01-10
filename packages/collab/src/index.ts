@@ -1,83 +1,87 @@
 import { DurableObject } from "cloudflare:workers";
+import * as Y from "yjs";
+import * as encoding from "lib0/encoding";
+import * as decoding from "lib0/decoding";
+import * as syncProtocol from "y-protocols/sync";
+import * as awarenessProtocol from "y-protocols/awareness";
 
 interface Env {
 	COLLAB_DOCUMENT: DurableObjectNamespace<CollaborativeDocument>;
 }
 
-interface Message {
-	type: "init" | "change" | "cursor" | "cursor-leave";
-	content?: string;
-	changes?: {
-		from: number;
-		to: number;
-		insert: string;
-	};
-	position?: number;
-	selection?: {
-		from: number;
-		to: number;
-	};
-	connectionId?: string;
-	user?: {
-		name: string;
-		image?: string;
-	};
-	userName?: string;
-	userImage?: string;
-}
+// Message types for Yjs protocol
+const MESSAGE_SYNC = 0;
+const MESSAGE_AWARENESS = 1;
 
-const MAX_MESSAGE_SIZE = 65536; // 64KB - generous limit for collaborative text editor
+const MAX_MESSAGE_SIZE = 1048576; // 1MB - generous limit for Yjs updates
 
 // Cleanup inactive documents after 48 hours of no activity
 const CLEANUP_AFTER_MS = 2 * 24 * 60 * 60 * 1000;
 
+// Checkpoint interval
+const CHECKPOINT_INTERVAL_MS = 30000;
+
 export class CollaborativeDocument extends DurableObject<Env> {
-	private content: string = "";
+	private doc: Y.Doc;
+	private awareness: awarenessProtocol.Awareness;
 	private checkpointScheduled: boolean = false;
+	private documentInitialized: boolean = false;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 
-		// Initialize SQLite storage for document content
+		// Initialize Yjs document
+		this.doc = new Y.Doc();
+		this.awareness = new awarenessProtocol.Awareness(this.doc);
+
+		// Set up awareness change handler
+		this.awareness.on(
+			"update",
+			({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+				const changedClients = added.concat(updated, removed);
+				this.broadcastAwarenessUpdate(changedClients);
+			},
+		);
+
+		// Initialize storage and load existing document state
 		ctx.blockConcurrencyWhile(async () => {
-			// Create table if it doesn't exist (with last_activity for cleanup scheduling)
+			// Create table if it doesn't exist
 			this.ctx.storage.sql.exec(`
 				CREATE TABLE IF NOT EXISTS document (
 					id INTEGER PRIMARY KEY CHECK (id = 1),
-					content TEXT NOT NULL DEFAULT '',
+					state BLOB,
 					last_activity INTEGER NOT NULL DEFAULT 0
 				)
 			`);
 
-			// Migration: add last_activity column if it doesn't exist (for existing documents)
-			const columns = this.ctx.storage.sql
-				.exec<{ name: string }>("PRAGMA table_info(document)")
-				.toArray()
-				.map((col) => col.name);
-
-			if (!columns.includes("last_activity")) {
-				this.ctx.storage.sql.exec(
-					"ALTER TABLE document ADD COLUMN last_activity INTEGER NOT NULL DEFAULT 0",
-				);
-				// Set last_activity to now for existing documents
-				this.ctx.storage.sql.exec("UPDATE document SET last_activity = ? WHERE id = 1", Date.now());
-			}
-
-			// Load existing content or initialize with empty
+			// Load existing state
 			const result = this.ctx.storage.sql
-				.exec<{ content: string }>("SELECT content FROM document WHERE id = 1")
+				.exec<{ state: ArrayBuffer | null }>("SELECT state FROM document WHERE id = 1")
 				.toArray();
 
-			if (result.length > 0) {
-				this.content = result[0].content;
+			if (result.length > 0 && result[0].state) {
+				try {
+					const state = new Uint8Array(result[0].state);
+					Y.applyUpdate(this.doc, state);
+					// Document has existing content, mark as initialized
+					this.documentInitialized = true;
+				} catch (error) {
+					console.error("Failed to load document state:", error);
+				}
 			} else {
-				// Insert initial empty document with current timestamp
+				// Insert initial empty document
 				this.ctx.storage.sql.exec(
-					"INSERT INTO document (id, content, last_activity) VALUES (1, ?, ?)",
-					"",
+					"INSERT INTO document (id, state, last_activity) VALUES (1, NULL, ?)",
 					Date.now(),
 				);
-				this.content = "";
+			}
+		});
+
+		// Listen for document updates to schedule checkpoints
+		this.doc.on("update", () => {
+			if (!this.checkpointScheduled) {
+				this.ctx.storage.setAlarm(Date.now() + CHECKPOINT_INTERVAL_MS);
+				this.checkpointScheduled = true;
 			}
 		});
 	}
@@ -94,16 +98,48 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		const userImage = request.headers.get("X-User-Image");
 		const userId = request.headers.get("X-User-Id");
 
+		// Extract initial content if provided (for initialization)
+		const initialContent = request.headers.get("X-Initial-Content");
+
 		// Create WebSocket pair
 		const pair = new WebSocketPair();
 		const [client, server] = Object.values(pair);
 
-		// Accept the WebSocket with Hibernation API and store user info
+		// Accept the WebSocket with Hibernation API
 		const tags: string[] = [];
 		if (userName) tags.push(userName);
 		if (userImage) tags.push(userImage);
 		if (userId) tags.push(userId);
 		this.ctx.acceptWebSocket(server, tags);
+
+		// Generate a unique connection ID for debugging/logging
+		const connectionId = crypto.randomUUID();
+
+		// Store attachment with connection info
+		server.serializeAttachment({
+			connectionId,
+			userName: userName ? this.decodeUserName(userName) : undefined,
+			userImage: userImage || undefined,
+			userId: userId || undefined,
+		});
+
+		// If document is empty and initial content is provided, initialize it
+		// Use documentInitialized flag to prevent race conditions with multiple connections
+		if (!this.documentInitialized && initialContent) {
+			const text = this.doc.getText("content");
+			if (text.length === 0) {
+				try {
+					const decoded = decodeURIComponent(escape(atob(initialContent)));
+					text.insert(0, decoded);
+					this.documentInitialized = true;
+				} catch {
+					// Ignore initialization errors
+				}
+			} else {
+				// Document has content now (from concurrent insert), mark as initialized
+				this.documentInitialized = true;
+			}
+		}
 
 		return new Response(null, {
 			status: 101,
@@ -111,8 +147,16 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		});
 	}
 
+	private decodeUserName(encoded: string): string {
+		try {
+			return decodeURIComponent(escape(atob(encoded)));
+		} catch {
+			return encoded;
+		}
+	}
+
 	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
-		// Check message size before parsing to prevent memory exhaustion
+		// Check message size
 		const messageSize = typeof message === "string" ? message.length : message.byteLength;
 		if (messageSize > MAX_MESSAGE_SIZE) {
 			ws.close(1009, "Message too big");
@@ -120,107 +164,43 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		}
 
 		try {
-			const data = JSON.parse(message.toString()) as Message;
+			// Handle binary Yjs messages
+			const data =
+				message instanceof ArrayBuffer
+					? new Uint8Array(message)
+					: new TextEncoder().encode(message as string);
 
-			switch (data.type) {
-				case "init": {
-					// Generate a unique connection ID for this client
-					const connectionId = crypto.randomUUID();
+			const decoder = decoding.createDecoder(data);
+			const messageType = decoding.readVarUint(decoder);
 
-					// Get user info from websocket tags (set during accept)
-					const tags = this.ctx.getTags(ws);
-					const userNameEncoded = tags[0];
-					const userImage = tags[1];
+			switch (messageType) {
+				case MESSAGE_SYNC: {
+					// Handle sync protocol
+					const encoder = encoding.createEncoder();
+					encoding.writeVarUint(encoder, MESSAGE_SYNC);
+					const syncMessageType = syncProtocol.readSyncMessage(decoder, encoder, this.doc, null);
 
-					// Decode base64 user name
-					let userName: string | undefined;
-					if (userNameEncoded) {
-						try {
-							userName = decodeURIComponent(escape(atob(userNameEncoded)));
-						} catch {
-							userName = userNameEncoded; // Fallback to encoded value
-						}
+					// If we have a response to send
+					if (encoding.length(encoder) > 1) {
+						ws.send(encoding.toUint8Array(encoder));
 					}
 
-					ws.serializeAttachment({
-						connectionId,
-						userName: userName || undefined,
-						userImage: userImage || undefined,
-					});
-
-					// If DO has no content and client sent content, initialize with it
-					if (!this.content && data.content) {
-						this.content = data.content;
-						this.ctx.storage.sql.exec("UPDATE document SET content = ? WHERE id = 1", this.content);
+					// If this was a sync step 2 or update, broadcast to other clients
+					if (syncMessageType === syncProtocol.messageYjsUpdate) {
+						this.broadcastUpdate(data, ws);
 					}
+					break;
+				}
 
-					// Send current document state to client
-					ws.send(
-						JSON.stringify({
-							type: "init",
-							content: this.content,
-							connectionId,
-						}),
+				case MESSAGE_AWARENESS: {
+					// Handle awareness protocol
+					// The awareness protocol handles client presence automatically
+					// Clients send their own state updates and cleanup is handled via timeouts
+					awarenessProtocol.applyAwarenessUpdate(
+						this.awareness,
+						decoding.readVarUint8Array(decoder),
+						ws,
 					);
-					break;
-				}
-
-				case "change": {
-					// Apply and broadcast document changes
-					const { changes } = data;
-					if (changes) {
-						// Apply change to content
-						const before = this.content.slice(0, changes.from);
-						const after = this.content.slice(changes.to);
-						this.content = before + changes.insert + after;
-
-						// Schedule checkpoint alarm if not already scheduled
-						if (!this.checkpointScheduled) {
-							this.ctx.storage.setAlarm(Date.now() + 30000);
-							this.checkpointScheduled = true;
-						}
-
-						// Get connection ID from attachment
-						const attachment = ws.deserializeAttachment() as {
-							connectionId: string;
-							userName?: string;
-							userImage?: string;
-						} | null;
-
-						// Broadcast to all clients (including sender) with connectionId
-						this.broadcast(
-							{
-								type: "change",
-								changes,
-								connectionId: attachment?.connectionId,
-							},
-							ws,
-						);
-					}
-					break;
-				}
-
-				case "cursor": {
-					// Broadcast cursor position to all other clients with connection ID and user info
-					if (data.position !== undefined) {
-						const attachment = ws.deserializeAttachment() as {
-							connectionId: string;
-							userName?: string;
-							userImage?: string;
-						} | null;
-
-						this.broadcast(
-							{
-								type: "cursor",
-								position: data.position,
-								selection: data.selection,
-								connectionId: attachment?.connectionId,
-								userName: data.userName || attachment?.userName,
-								userImage: data.userImage || attachment?.userImage,
-							},
-							ws,
-						);
-					}
 					break;
 				}
 			}
@@ -229,32 +209,41 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		}
 	}
 
-	async webSocketClose(ws: WebSocket) {
-		const attachment = ws.deserializeAttachment() as {
-			connectionId: string;
-			userName?: string;
-			userImage?: string;
-		} | null;
+	async webSocketOpen(ws: WebSocket) {
+		// Send sync step 1 (document state) to new client
+		const encoder = encoding.createEncoder();
+		encoding.writeVarUint(encoder, MESSAGE_SYNC);
+		syncProtocol.writeSyncStep1(encoder, this.doc);
+		ws.send(encoding.toUint8Array(encoder));
 
-		if (attachment?.connectionId) {
-			this.broadcast({
-				type: "cursor-leave",
-				connectionId: attachment.connectionId,
-			});
+		// Send current awareness state
+		const awarenessStates = this.awareness.getStates();
+		if (awarenessStates.size > 0) {
+			const awarenessEncoder = encoding.createEncoder();
+			encoding.writeVarUint(awarenessEncoder, MESSAGE_AWARENESS);
+			encoding.writeVarUint8Array(
+				awarenessEncoder,
+				awarenessProtocol.encodeAwarenessUpdate(this.awareness, Array.from(awarenessStates.keys())),
+			);
+			ws.send(encoding.toUint8Array(awarenessEncoder));
 		}
+	}
+
+	async webSocketClose(ws: WebSocket) {
+		// Note: We don't manually remove awareness states here.
+		// The Yjs awareness protocol handles cleanup automatically:
+		// 1. Clients send awareness updates with null state before disconnecting
+		// 2. The awareness protocol has built-in timeout mechanisms for stale clients
+		// Manual cleanup would require knowing the client's Yjs clientID, which is
+		// generated client-side and not accessible from server-assigned connection IDs.
 
 		// Check if this was the last client
 		const remainingClients = this.ctx.getWebSockets().filter((c) => c !== ws);
 		if (remainingClients.length === 0) {
-			// Persist content and last activity to SQLite before hibernation
-			this.ctx.storage.sql.exec(
-				"UPDATE document SET content = ?, last_activity = ? WHERE id = 1",
-				this.content,
-				Date.now(),
-			);
-			this.checkpointScheduled = false;
+			// Persist state before hibernation
+			await this.checkpoint();
 
-			// Schedule cleanup alarm for inactive document deletion
+			// Schedule cleanup alarm
 			this.ctx.storage.setAlarm(Date.now() + CLEANUP_AFTER_MS);
 		}
 	}
@@ -269,15 +258,11 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 		if (connectedClients > 0) {
 			// Clients connected: this is a checkpoint alarm
-			this.ctx.storage.sql.exec(
-				"UPDATE document SET content = ?, last_activity = ? WHERE id = 1",
-				this.content,
-				Date.now(),
-			);
+			await this.checkpoint();
 			this.checkpointScheduled = false;
 
 			// Reschedule checkpoint
-			this.ctx.storage.setAlarm(Date.now() + 30000);
+			this.ctx.storage.setAlarm(Date.now() + CHECKPOINT_INTERVAL_MS);
 			this.checkpointScheduled = true;
 		} else {
 			// No clients: check if document is inactive and should be cleaned up
@@ -301,16 +286,45 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		}
 	}
 
-	private broadcast(message: Message, exclude?: WebSocket) {
-		const payload = JSON.stringify(message);
+	private async checkpoint() {
+		const state = Y.encodeStateAsUpdate(this.doc);
+		this.ctx.storage.sql.exec(
+			"UPDATE document SET state = ?, last_activity = ? WHERE id = 1",
+			state,
+			Date.now(),
+		);
+	}
 
+	private broadcastUpdate(message: Uint8Array, exclude?: WebSocket) {
 		for (const client of this.ctx.getWebSockets()) {
 			if (client === exclude) continue;
 			if (client.readyState === WebSocket.OPEN) {
 				try {
-					client.send(payload);
+					client.send(message);
 				} catch (error) {
 					console.error("Broadcast error:", error);
+				}
+			}
+		}
+	}
+
+	private broadcastAwarenessUpdate(changedClients: number[]) {
+		if (changedClients.length === 0) return;
+
+		const encoder = encoding.createEncoder();
+		encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+		encoding.writeVarUint8Array(
+			encoder,
+			awarenessProtocol.encodeAwarenessUpdate(this.awareness, changedClients),
+		);
+		const message = encoding.toUint8Array(encoder);
+
+		for (const client of this.ctx.getWebSockets()) {
+			if (client.readyState === WebSocket.OPEN) {
+				try {
+					client.send(message);
+				} catch (error) {
+					console.error("Awareness broadcast error:", error);
 				}
 			}
 		}
