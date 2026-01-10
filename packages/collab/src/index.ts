@@ -25,7 +25,7 @@ export class CollaborativeDocument extends DurableObject<Env> {
 	private doc: Y.Doc;
 	private awareness: awarenessProtocol.Awareness;
 	private checkpointScheduled: boolean = false;
-	private clientIdToWebSocket: Map<number, WebSocket> = new Map();
+	private documentInitialized: boolean = false;
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
@@ -63,6 +63,8 @@ export class CollaborativeDocument extends DurableObject<Env> {
 				try {
 					const state = new Uint8Array(result[0].state);
 					Y.applyUpdate(this.doc, state);
+					// Document has existing content, mark as initialized
+					this.documentInitialized = true;
 				} catch (error) {
 					console.error("Failed to load document state:", error);
 				}
@@ -110,28 +112,32 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		if (userId) tags.push(userId);
 		this.ctx.acceptWebSocket(server, tags);
 
-		// Generate a client ID for this connection
-		const clientId = this.doc.clientID + this.ctx.getWebSockets().length;
+		// Generate a unique connection ID for debugging/logging
+		const connectionId = crypto.randomUUID();
 
 		// Store attachment with connection info
 		server.serializeAttachment({
-			clientId,
+			connectionId,
 			userName: userName ? this.decodeUserName(userName) : undefined,
 			userImage: userImage || undefined,
 			userId: userId || undefined,
 		});
 
-		// Map clientId to WebSocket for awareness
-		this.clientIdToWebSocket.set(clientId, server);
-
 		// If document is empty and initial content is provided, initialize it
-		const text = this.doc.getText("content");
-		if (text.length === 0 && initialContent) {
-			try {
-				const decoded = decodeURIComponent(escape(atob(initialContent)));
-				text.insert(0, decoded);
-			} catch {
-				// Ignore initialization errors
+		// Use documentInitialized flag to prevent race conditions with multiple connections
+		if (!this.documentInitialized && initialContent) {
+			const text = this.doc.getText("content");
+			if (text.length === 0) {
+				try {
+					const decoded = decodeURIComponent(escape(atob(initialContent)));
+					text.insert(0, decoded);
+					this.documentInitialized = true;
+				} catch {
+					// Ignore initialization errors
+				}
+			} else {
+				// Document has content now (from concurrent insert), mark as initialized
+				this.documentInitialized = true;
 			}
 		}
 
@@ -158,16 +164,6 @@ export class CollaborativeDocument extends DurableObject<Env> {
 		}
 
 		try {
-			// Get client attachment
-			const attachment = ws.deserializeAttachment() as {
-				clientId: number;
-				userName?: string;
-				userImage?: string;
-				userId?: string;
-			} | null;
-
-			if (!attachment) return;
-
 			// Handle binary Yjs messages
 			const data =
 				message instanceof ArrayBuffer
@@ -198,6 +194,8 @@ export class CollaborativeDocument extends DurableObject<Env> {
 
 				case MESSAGE_AWARENESS: {
 					// Handle awareness protocol
+					// The awareness protocol handles client presence automatically
+					// Clients send their own state updates and cleanup is handled via timeouts
 					awarenessProtocol.applyAwarenessUpdate(
 						this.awareness,
 						decoding.readVarUint8Array(decoder),
@@ -232,20 +230,12 @@ export class CollaborativeDocument extends DurableObject<Env> {
 	}
 
 	async webSocketClose(ws: WebSocket) {
-		const attachment = ws.deserializeAttachment() as {
-			clientId: number;
-			userName?: string;
-			userImage?: string;
-			userId?: string;
-		} | null;
-
-		if (attachment?.clientId) {
-			// Remove from clientId map
-			this.clientIdToWebSocket.delete(attachment.clientId);
-
-			// Remove awareness state for this client
-			awarenessProtocol.removeAwarenessStates(this.awareness, [attachment.clientId], null);
-		}
+		// Note: We don't manually remove awareness states here.
+		// The Yjs awareness protocol handles cleanup automatically:
+		// 1. Clients send awareness updates with null state before disconnecting
+		// 2. The awareness protocol has built-in timeout mechanisms for stale clients
+		// Manual cleanup would require knowing the client's Yjs clientID, which is
+		// generated client-side and not accessible from server-assigned connection IDs.
 
 		// Check if this was the last client
 		const remainingClients = this.ctx.getWebSockets().filter((c) => c !== ws);

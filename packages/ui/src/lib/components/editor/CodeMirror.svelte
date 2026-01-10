@@ -49,8 +49,8 @@
 	let editorView: EditorView | null = null;
 	let isUpdatingFromRemote = false;
 
-	// Collaborative mode is enabled when yText is provided
-	let isCollaborative = $derived(!!yText);
+	// Collaborative mode is enabled when both yText and awareness are provided
+	let isCollaborative = $derived(!!yText && !!awareness);
 
 	export function applyRemoteChange(change: { from: number; to: number; insert: string }) {
 		// In collaborative mode, changes are handled by Yjs
