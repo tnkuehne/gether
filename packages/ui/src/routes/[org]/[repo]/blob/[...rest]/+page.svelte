@@ -1396,11 +1396,11 @@
 							<iframe
 								src={previewUrl}
 								title="Live Preview"
-								class="min-h-[50vh] w-full border-0"
+								class="h-full w-full border-0"
 								sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
 							></iframe>
 						{:else if isMarkdown}
-							<div class="min-h-[50vh] overflow-auto bg-background p-4">
+							<div class="h-full overflow-auto bg-background p-4">
 								<Streamdown
 									content={hasFrontmatter ? bodyContent : content}
 									baseTheme="shadcn"
@@ -1411,7 +1411,7 @@
 							<iframe
 								src={previewUrl}
 								title="Live Preview"
-								class="min-h-[50vh] w-full border-0"
+								class="h-full w-full border-0"
 								sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
 							></iframe>
 						{/if}
