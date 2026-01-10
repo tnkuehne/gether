@@ -8,6 +8,11 @@
 		"start": "wrangler dev",
 		"cf-typegen": "wrangler types"
 	},
+	"dependencies": {
+		"yjs": "^13.6.20",
+		"y-protocols": "^1.0.6",
+		"lib0": "^0.2.99"
+	},
 	"devDependencies": {
 		"typescript": "^5.5.2",
 		"wrangler": "^4.54.0"

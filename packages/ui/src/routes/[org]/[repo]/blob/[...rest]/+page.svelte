@@ -7,8 +7,10 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Textarea } from "$lib/components/ui/textarea";
 	import { onDestroy } from "svelte";
-	import { SvelteMap } from "svelte/reactivity";
 	import CodeMirror, { type SelectionInfo } from "$lib/components/editor/CodeMirror.svelte";
+	import * as Y from "yjs";
+	import { Awareness } from "y-protocols/awareness";
+	import { YjsWebSocketProvider } from "$lib/yjs-provider";
 	import FrontmatterEditor from "$lib/components/editor/FrontmatterEditor.svelte";
 	import {
 		updateContributionState,
@@ -337,11 +339,14 @@
 	let fileData = $state<FileData | null>(null);
 	let content = $state("");
 	let originalContent = $state("");
-	let ws = $state<WebSocket | null>(null);
 	let wsConnectionStatus = $state<"connected" | "connecting" | "disconnected">("disconnected");
-	let isRemoteUpdate = $state(false);
-	let lastValue = $state("");
 	let hasStartedEditing = $state(false);
+
+	// Yjs collaborative editing state
+	let yjsDoc = $state<Y.Doc | undefined>(undefined);
+	let yjsProvider = $state<YjsWebSocketProvider | undefined>(undefined);
+	let awareness = $state<Awareness | undefined>(undefined);
+	let yText = $state<Y.Text | undefined>(undefined);
 
 	// Frontmatter state
 	let frontmatterFields = $state<FrontmatterField[]>([]);
@@ -349,15 +354,6 @@
 	let bodyContent = $state(""); // Content without frontmatter
 	// Editor content - what's shown in CodeMirror (bodyContent when hasFrontmatter, else content)
 	let editorContent = $state("");
-	const remoteCursors = new SvelteMap<
-		string,
-		{ position: number; color: string; userName?: string }
-	>();
-	const remoteSelections = new SvelteMap<
-		string,
-		{ from: number; to: number; color: string; userName?: string }
-	>();
-	let myConnectionId = $state<string>("");
 	let editorRef: ReturnType<typeof CodeMirror> | null = $state(null);
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
@@ -395,7 +391,6 @@
 		fileData = result.fileData;
 		content = result.fileData.content;
 		originalContent = result.fileData.content;
-		lastValue = result.fileData.content;
 
 		// Parse frontmatter if present
 		const parsed = parseFrontmatter(result.fileData.content);
@@ -422,16 +417,17 @@
 
 		lastPath = data.path;
 
-		// Close existing WebSocket connection before switching files
-		if (ws) {
-			ws.onclose = null; // Prevent reconnect logic
-			ws.close();
-			ws = null;
+		// Clean up existing Yjs provider before switching files
+		if (yjsProvider) {
+			yjsProvider.destroy();
+			yjsProvider = undefined;
 		}
-
-		// Clear remote cursors/selections from previous file
-		remoteCursors.clear();
-		remoteSelections.clear();
+		if (yjsDoc) {
+			yjsDoc.destroy();
+			yjsDoc = undefined;
+		}
+		yText = undefined;
+		awareness = undefined;
 
 		// Reset comment state
 		selectedThread = null;
@@ -449,7 +445,6 @@
 				fileData = fileResult.fileData;
 				content = fileResult.fileData.content;
 				originalContent = fileResult.fileData.content;
-				lastValue = fileResult.fileData.content;
 
 				// Parse frontmatter if present
 				const parsedFm = parseFrontmatter(fileResult.fileData.content);
@@ -458,13 +453,12 @@
 				bodyContent = parsedFm.content;
 				editorContent = parsedFm.hasFrontmatter ? parsedFm.content : fileResult.fileData.content;
 
-				// Reconnect WebSocket for new file (will happen via the session effect)
+				// Reconnect Yjs for new file (will happen via the session effect)
 			} else if (fileResult.error) {
 				// Handle error - reset file data
 				fileData = null;
 				content = "";
 				originalContent = "";
-				lastValue = "";
 				hasFrontmatter = false;
 				frontmatterFields = [];
 				bodyContent = "";
@@ -647,7 +641,7 @@
 
 	$effect(() => {
 		// Re-connect when session becomes available (if not already connected)
-		if (fileData && $session.data && !ws) {
+		if (fileData && $session.data && !yjsProvider) {
 			connect();
 		}
 	});
@@ -658,125 +652,98 @@
 		// Only connect if user is logged in
 		if (!$session.data) return;
 
-		// Close existing connection before creating a new one
-		if (ws) {
-			ws.onclose = null; // Prevent reconnect logic
-			ws.close();
-			ws = null;
+		// Clean up existing provider before creating a new one
+		if (yjsProvider) {
+			yjsProvider.destroy();
+			yjsProvider = undefined;
 		}
+		if (yjsDoc) {
+			yjsDoc.destroy();
+		}
+
+		// Create new Yjs document
+		yjsDoc = new Y.Doc();
+		yText = yjsDoc.getText("content");
+		awareness = new Awareness(yjsDoc);
+
+		// Set local awareness state with user info and color
+		const userColor = getUserColor($session.data.user.id || $session.data.user.name || "anonymous");
+		awareness.setLocalStateField("user", {
+			name: $session.data.user.name || "Anonymous",
+			color: userColor.color,
+			colorLight: userColor.light,
+		});
+
+		// Listen for Y.Text changes to sync with content state
+		yText.observe(() => {
+			const newContent = yText!.toString();
+			if (newContent !== content) {
+				content = newContent;
+				// Update frontmatter state
+				const parsed = parseFrontmatter(newContent);
+				hasFrontmatter = parsed.hasFrontmatter;
+				frontmatterFields = parsed.frontmatter;
+				bodyContent = parsed.content;
+				editorContent = parsed.hasFrontmatter ? parsed.content : newContent;
+
+				// Sync to sandbox for HMR
+				scheduleSyncToSandbox(newContent);
+			}
+		});
 
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
 
 		wsConnectionStatus = "connecting";
-		ws = new WebSocket(wsUrl);
 
-		ws.onopen = () => {
-			wsConnectionStatus = "connected";
-			ws?.send(JSON.stringify({ type: "init", content: content }));
-		};
-
-		ws.onmessage = (event) => {
-			const data = JSON.parse(event.data);
-
-			switch (data.type) {
-				case "init": {
-					if (data.connectionId) {
-						myConnectionId = data.connectionId;
-					}
-
-					// Sync to server content if it differs (collaborative changes on reload)
-					if (data.content !== undefined && data.content !== content) {
-						isRemoteUpdate = true;
-						content = data.content;
-						lastValue = data.content;
-
-						// Update all editor state to reflect server content
-						const parsed = parseFrontmatter(data.content);
-						hasFrontmatter = parsed.hasFrontmatter;
-						frontmatterFields = parsed.frontmatter;
-						bodyContent = parsed.content;
-						editorContent = parsed.hasFrontmatter ? parsed.content : data.content;
-
-						isRemoteUpdate = false;
-					}
-					break;
+		yjsProvider = new YjsWebSocketProvider({
+			url: wsUrl,
+			doc: yjsDoc,
+			awareness: awareness,
+			initialContent: content,
+			onConnect: () => {
+				wsConnectionStatus = "connected";
+			},
+			onDisconnect: () => {
+				wsConnectionStatus = "disconnected";
+			},
+			onSynced: () => {
+				// When synced, update content state from Y.Text if different
+				const syncedContent = yText!.toString();
+				if (syncedContent && syncedContent !== content) {
+					content = syncedContent;
+					const parsed = parseFrontmatter(syncedContent);
+					hasFrontmatter = parsed.hasFrontmatter;
+					frontmatterFields = parsed.frontmatter;
+					bodyContent = parsed.content;
+					editorContent = parsed.hasFrontmatter ? parsed.content : syncedContent;
 				}
+			},
+		});
+	}
 
-				case "change": {
-					// Skip our own changes
-					if (data.connectionId && data.connectionId === myConnectionId) {
-						break;
-					}
+	// Helper function to get a consistent color for a user
+	function getUserColor(userId: string): { color: string; light: string } {
+		const colors = [
+			{ color: "#3b82f6", light: "#3b82f620" }, // blue
+			{ color: "#ef4444", light: "#ef444420" }, // red
+			{ color: "#10b981", light: "#10b98120" }, // green
+			{ color: "#f59e0b", light: "#f59e0b20" }, // orange
+			{ color: "#8b5cf6", light: "#8b5cf620" }, // purple
+			{ color: "#ec4899", light: "#ec489920" }, // pink
+			{ color: "#14b8a6", light: "#14b8a620" }, // teal
+		];
 
-					const { from, to, insert } = data.changes;
-					// Apply incremental change directly to CodeMirror
-					// This also updates the bound content value
-					editorRef?.applyRemoteChange({ from, to, insert });
-					lastValue = content;
-
-					// Sync remote changes to sandbox for HMR
-					scheduleSyncToSandbox(content);
-					break;
-				}
-
-				case "cursor": {
-					if (
-						data.position !== undefined &&
-						data.connectionId &&
-						data.connectionId !== myConnectionId
-					) {
-						const color = getCursorColor(data.connectionId);
-						remoteCursors.set(data.connectionId, {
-							position: data.position,
-							color,
-							userName: data.userName,
-						});
-
-						// If selection data is included
-						if (data.selection && data.selection.from !== data.selection.to) {
-							remoteSelections.set(data.connectionId, {
-								from: data.selection.from,
-								to: data.selection.to,
-								color,
-								userName: data.userName,
-							});
-						} else {
-							// No selection, remove it
-							remoteSelections.delete(data.connectionId);
-						}
-					}
-					break;
-				}
-
-				case "cursor-leave": {
-					if (data.connectionId) {
-						remoteCursors.delete(data.connectionId);
-						remoteSelections.delete(data.connectionId);
-					}
-					break;
-				}
-			}
-		};
-
-		ws.onclose = () => {
-			wsConnectionStatus = "disconnected";
-			// Only reconnect if still logged in
-			if ($session.data) {
-				setTimeout(connect, 2000);
-			}
-		};
-
-		ws.onerror = (error) => {
-			wsConnectionStatus = "disconnected";
-			console.error("WebSocket error:", error);
-		};
+		let hash = 0;
+		for (let i = 0; i < userId.length; i++) {
+			hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+		}
+		return colors[Math.abs(hash) % colors.length];
 	}
 
 	function handleEditorChange(newValue: string) {
-		if (isRemoteUpdate || !ws || ws.readyState !== WebSocket.OPEN) {
-			return;
-		}
+		// In Yjs mode, changes are automatically synced through Y.Text
+		// This handler is only used for PostHog tracking and non-Yjs content sync
 
 		// Capture PostHog event when user starts editing
 		if (!hasStartedEditing) {
@@ -786,70 +753,27 @@
 			});
 		}
 
-		// Simple diff: find where the change occurred
-		let from = 0;
-		while (
-			from < lastValue.length &&
-			from < newValue.length &&
-			lastValue[from] === newValue[from]
-		) {
-			from++;
-		}
-
-		let lastEnd = lastValue.length;
-		let newEnd = newValue.length;
-		while (lastEnd > from && newEnd > from && lastValue[lastEnd - 1] === newValue[newEnd - 1]) {
-			lastEnd--;
-			newEnd--;
-		}
-
-		const insert = newValue.slice(from, newEnd);
-
-		// Send change
-		ws.send(
-			JSON.stringify({
-				type: "change",
-				changes: { from, to: lastEnd, insert },
-			}),
-		);
-
-		lastValue = newValue;
-
-		// Sync to sandbox for HMR if preview is running
-		scheduleSyncToSandbox(newValue);
+		// Update content state (Yjs observer will handle the rest)
+		content = newValue;
 	}
 
-	function handleCursorChange(position: number, selection?: { from: number; to: number }) {
-		if (!ws || ws.readyState !== WebSocket.OPEN) {
-			return;
-		}
-
-		ws.send(
-			JSON.stringify({
-				type: "cursor",
-				position,
-				selection,
-				userName: $session.data?.user.name,
-			}),
-		);
-	}
+	// Note: Cursor changes are now handled automatically by Yjs awareness protocol
+	// via the y-codemirror.next extension
 
 	function handleFrontmatterChange(fields: FrontmatterField[]) {
 		frontmatterFields = fields;
 		// Recombine the document with updated frontmatter
 		const newContent = combineDocument(fields, bodyContent);
-		content = newContent;
-		lastValue = newContent;
 
-		// Broadcast the change to other connected clients
-		if (ws && ws.readyState === WebSocket.OPEN) {
-			ws.send(
-				JSON.stringify({
-					type: "change",
-					changes: { from: 0, to: lastValue.length, insert: newContent },
-				}),
-			);
+		// Update Y.Text with the new full content
+		if (yText) {
+			yjsDoc?.transact(() => {
+				yText!.delete(0, yText!.length);
+				yText!.insert(0, newContent);
+			});
 		}
+
+		content = newContent;
 
 		// Sync to sandbox for HMR if preview is running
 		scheduleSyncToSandbox(newContent);
@@ -865,24 +789,6 @@
 		} else {
 			content = newEditorContent;
 		}
-	}
-
-	function getCursorColor(connectionId: string): string {
-		const colors = [
-			"rgba(59, 130, 246, 0.8)", // blue
-			"rgba(239, 68, 68, 0.8)", // red
-			"rgba(16, 185, 129, 0.8)", // green
-			"rgba(245, 158, 11, 0.8)", // orange
-			"rgba(139, 92, 246, 0.8)", // purple
-			"rgba(236, 72, 153, 0.8)", // pink
-			"rgba(20, 184, 166, 0.8)", // teal
-		];
-
-		let hash = 0;
-		for (let i = 0; i < connectionId.length; i++) {
-			hash = connectionId.charCodeAt(i) + ((hash << 5) - hash);
-		}
-		return colors[Math.abs(hash) % colors.length];
 	}
 
 	function handleEditBlocked() {
@@ -901,9 +807,15 @@
 				"Are you sure you want to reset to the original GitHub content? All unsaved changes will be lost.",
 			)
 		) {
-			isRemoteUpdate = true;
+			// Update Y.Text with the original content (will sync to all clients via Yjs)
+			if (yText && yjsDoc) {
+				yjsDoc.transact(() => {
+					yText!.delete(0, yText!.length);
+					yText!.insert(0, originalContent);
+				});
+			}
+
 			content = originalContent;
-			lastValue = originalContent;
 
 			// Re-parse frontmatter from original content
 			const parsed = parseFrontmatter(originalContent);
@@ -911,18 +823,6 @@
 			frontmatterFields = parsed.frontmatter;
 			bodyContent = parsed.content;
 			editorContent = parsed.hasFrontmatter ? parsed.content : originalContent;
-
-			isRemoteUpdate = false;
-
-			// Broadcast the reset to other connected clients
-			if (ws && ws.readyState === WebSocket.OPEN) {
-				ws.send(
-					JSON.stringify({
-						type: "change",
-						changes: { from: 0, to: lastValue.length, insert: originalContent },
-					}),
-				);
-			}
 		}
 	}
 
@@ -983,8 +883,11 @@
 	}
 
 	onDestroy(() => {
-		if (ws) {
-			ws.close();
+		if (yjsProvider) {
+			yjsProvider.destroy();
+		}
+		if (yjsDoc) {
+			yjsDoc.destroy();
 		}
 		if (syncTimeoutId) {
 			clearTimeout(syncTimeoutId);
@@ -1315,15 +1218,14 @@
 															: newValue,
 													);
 												}}
-												oncursorchange={handleCursorChange}
 												oneditblocked={handleEditBlocked}
-												remoteCursors={Array.from(remoteCursors.values())}
-												remoteSelections={Array.from(remoteSelections.values())}
 												{prComments}
 												onCommentClick={handleCommentClick}
 												onselectionchange={handleSelectionChange}
 												canAddComments={!!existingPR && !!$session.data}
 												readonly={!$session.data || !canEdit}
+												{yText}
+												{awareness}
 											/>
 										</div>
 									{/await}
@@ -1379,15 +1281,14 @@
 													hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
 												);
 											}}
-											oncursorchange={handleCursorChange}
 											oneditblocked={handleEditBlocked}
-											remoteCursors={Array.from(remoteCursors.values())}
-											remoteSelections={Array.from(remoteSelections.values())}
 											{prComments}
 											onCommentClick={handleCommentClick}
 											onselectionchange={handleSelectionChange}
 											canAddComments={!!existingPR && !!$session.data}
 											readonly={!$session.data || !canEdit}
+											{yText}
+											{awareness}
 										/>
 									</div>
 								{/await}
@@ -1436,15 +1337,14 @@
 											hasFrontmatter ? combineDocument(frontmatterFields, newValue) : newValue,
 										);
 									}}
-									oncursorchange={handleCursorChange}
 									oneditblocked={handleEditBlocked}
-									remoteCursors={Array.from(remoteCursors.values())}
-									remoteSelections={Array.from(remoteSelections.values())}
 									{prComments}
 									onCommentClick={handleCommentClick}
 									onselectionchange={handleSelectionChange}
 									canAddComments={!!existingPR && !!$session.data}
 									readonly={!$session.data || !canEdit}
+									{yText}
+									{awareness}
 								/>
 							</div>
 						{/await}

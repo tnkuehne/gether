@@ -1,24 +1,14 @@
 <script lang="ts">
 	import { onDestroy } from "svelte";
 	import { EditorView, basicSetup } from "codemirror";
-	import { EditorState, StateEffect, StateField } from "@codemirror/state";
+	import { EditorState, StateEffect, StateField, type Range } from "@codemirror/state";
 	import { markdown } from "@codemirror/lang-markdown";
-	import { Decoration, type DecorationSet, WidgetType } from "@codemirror/view";
+	import { Decoration, type DecorationSet } from "@codemirror/view";
 	import type { PRCommentThread } from "$lib/github-app";
 	import { CommentGutterWidget } from "./comment-widgets";
-
-	interface RemoteCursor {
-		position: number;
-		color: string;
-		userName?: string;
-	}
-
-	interface RemoteSelection {
-		from: number;
-		to: number;
-		color: string;
-		userName?: string;
-	}
+	import type * as Y from "yjs";
+	import type { Awareness } from "y-protocols/awareness";
+	import { yCollab } from "y-codemirror.next";
 
 	export interface SelectionInfo {
 		from: number;
@@ -35,30 +25,37 @@
 			| undefined,
 		onselectionchange = undefined as ((selection: SelectionInfo | null) => void) | undefined,
 		oneditblocked = undefined as (() => void) | undefined,
-		remoteCursors = [] as RemoteCursor[],
-		remoteSelections = [] as RemoteSelection[],
 		prComments = new Map() as Map<number, PRCommentThread>,
 		onCommentClick = undefined as ((thread: PRCommentThread) => void) | undefined,
 		canAddComments = false,
 		readonly = false,
+		// Yjs collaborative editing props
+		yText = undefined as Y.Text | undefined,
+		awareness = undefined as Awareness | undefined,
 	}: {
 		value?: string;
 		onchange?: (value: string) => void;
 		oncursorchange?: (position: number, selection?: { from: number; to: number }) => void;
 		onselectionchange?: (selection: SelectionInfo | null) => void;
 		oneditblocked?: () => void;
-		remoteCursors?: RemoteCursor[];
-		remoteSelections?: RemoteSelection[];
 		prComments?: Map<number, PRCommentThread>;
 		onCommentClick?: (thread: PRCommentThread) => void;
 		canAddComments?: boolean;
 		readonly?: boolean;
+		yText?: Y.Text;
+		awareness?: Awareness;
 	} = $props();
 
 	let editorView: EditorView | null = null;
 	let isUpdatingFromRemote = false;
 
+	// Collaborative mode is enabled when yText is provided
+	let isCollaborative = $derived(!!yText);
+
 	export function applyRemoteChange(change: { from: number; to: number; insert: string }) {
+		// In collaborative mode, changes are handled by Yjs
+		if (isCollaborative) return;
+
 		if (editorView) {
 			isUpdatingFromRemote = true;
 			editorView.dispatch({
@@ -69,122 +66,6 @@
 			isUpdatingFromRemote = false;
 		}
 	}
-
-	// Cursor widget for rendering remote cursors
-	class CursorWidget extends WidgetType {
-		color: string;
-		userName?: string;
-
-		constructor(color: string, userName?: string) {
-			super();
-			this.color = color;
-			this.userName = userName;
-		}
-
-		toDOM() {
-			const wrapper = document.createElement("span");
-			wrapper.style.position = "relative";
-			wrapper.style.display = "inline";
-			wrapper.style.height = "0";
-			wrapper.style.width = "0";
-
-			const cursor = document.createElement("span");
-			cursor.style.position = "absolute";
-			cursor.style.borderLeft = `2px solid ${this.color}`;
-			cursor.style.height = "1.2em";
-			cursor.style.left = "0";
-			cursor.style.top = "0";
-			cursor.style.pointerEvents = "none";
-			cursor.style.zIndex = "10";
-			cursor.style.boxShadow = `0 0 4px ${this.color}`;
-
-			wrapper.appendChild(cursor);
-
-			if (this.userName) {
-				const label = document.createElement("span");
-				label.textContent = this.userName;
-				label.style.position = "absolute";
-				label.style.top = "-20px";
-				label.style.left = "2px";
-				label.style.backgroundColor = this.color;
-				label.style.color = "white";
-				label.style.padding = "2px 6px";
-				label.style.borderRadius = "3px";
-				label.style.fontSize = "11px";
-				label.style.fontWeight = "500";
-				label.style.whiteSpace = "nowrap";
-				label.style.pointerEvents = "none";
-				label.style.zIndex = "11";
-				wrapper.appendChild(label);
-			}
-
-			return wrapper;
-		}
-	}
-
-	// Effect to update remote cursors
-	const updateRemoteCursorsEffect = StateEffect.define<RemoteCursor[]>();
-
-	// Effect to update remote selections
-	const updateRemoteSelectionsEffect = StateEffect.define<RemoteSelection[]>();
-
-	// Field to store remote cursors decorations
-	const remoteCursorsField = StateField.define<DecorationSet>({
-		create() {
-			return Decoration.none;
-		},
-		update(decorations, tr) {
-			decorations = decorations.map(tr.changes);
-
-			for (const effect of tr.effects) {
-				if (effect.is(updateRemoteCursorsEffect)) {
-					const cursors = effect.value;
-					const widgets = cursors.map((cursor) => {
-						// Clamp position to valid range
-						const pos = Math.min(cursor.position, tr.newDoc.length);
-						return Decoration.widget({
-							widget: new CursorWidget(cursor.color, cursor.userName),
-							side: 1,
-						}).range(pos);
-					});
-					decorations = Decoration.set(widgets);
-				}
-			}
-
-			return decorations;
-		},
-		provide: (f) => EditorView.decorations.from(f),
-	});
-
-	// Field to store remote selections decorations
-	const remoteSelectionsField = StateField.define<DecorationSet>({
-		create() {
-			return Decoration.none;
-		},
-		update(decorations, tr) {
-			decorations = decorations.map(tr.changes);
-
-			for (const effect of tr.effects) {
-				if (effect.is(updateRemoteSelectionsEffect)) {
-					const selections = effect.value;
-					const marks = selections.map((selection) => {
-						// Clamp positions to valid range
-						const from = Math.min(selection.from, tr.newDoc.length);
-						const to = Math.min(selection.to, tr.newDoc.length);
-						return Decoration.mark({
-							attributes: {
-								style: `background-color: ${selection.color.replace("0.8", "0.2")};`,
-							},
-						}).range(from, to);
-					});
-					decorations = Decoration.set(marks);
-				}
-			}
-
-			return decorations;
-		},
-		provide: (f) => EditorView.decorations.from(f),
-	});
 
 	// Effect to update PR comments
 	const updatePRCommentsEffect = StateEffect.define<Map<number, PRCommentThread>>();
@@ -200,7 +81,7 @@
 			for (const effect of tr.effects) {
 				if (effect.is(updatePRCommentsEffect)) {
 					const comments = effect.value;
-					const widgets: ReturnType<typeof Decoration.widget>[] = [];
+					const widgets: Range<Decoration>[] = [];
 
 					// Convert line numbers to document positions
 					// Note: Map keys are encoded as (line * 10000 + counter) to allow multiple threads per line
@@ -308,54 +189,55 @@
 	}
 
 	function initializeEditor(container: HTMLDivElement) {
+		// Build extensions based on collaborative mode
+		const extensions = [
+			basicSetup,
+			markdown(),
+			prCommentsField,
+			EditorView.updateListener.of((update) => {
+				if (update.docChanged && !isUpdatingFromRemote) {
+					const newValue = update.state.doc.toString();
+					value = newValue;
+					onchange?.(newValue);
+				}
+				if (update.selectionSet) {
+					const selection = update.state.selection.main;
+					const cursorPos = selection.head;
+					const selectionRange =
+						selection.from !== selection.to
+							? { from: selection.from, to: selection.to }
+							: undefined;
+					oncursorchange?.(cursorPos, selectionRange);
+
+					if (canAddComments && onselectionchange) {
+						onselectionchange(getSelectionInfo(update.view));
+					}
+				}
+			}),
+			EditorView.editable.of(!readonly),
+			EditorView.theme({
+				"&": {
+					fontSize: "14px",
+				},
+				".cm-gutters": {
+					display: "none",
+				},
+				".cm-scroller": {
+					fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+					lineHeight: "1.5",
+					overflow: "auto",
+				},
+			}),
+		];
+
+		// Add Yjs collaboration extension if in collaborative mode
+		if (yText && awareness) {
+			extensions.push(yCollab(yText, awareness, { undoManager: false }));
+		}
+
 		const state = EditorState.create({
-			doc: "",
-			extensions: [
-				basicSetup,
-				markdown(),
-				remoteCursorsField,
-				remoteSelectionsField,
-				prCommentsField,
-				EditorView.updateListener.of((update) => {
-					if (update.docChanged && !isUpdatingFromRemote) {
-						const newValue = update.state.doc.toString();
-						value = newValue;
-						// Access current callback from props
-						onchange?.(newValue);
-					}
-					// Track cursor/selection changes
-					if (update.selectionSet) {
-						const selection = update.state.selection.main;
-						const cursorPos = selection.head;
-						// Send selection range if text is selected
-						const selectionRange =
-							selection.from !== selection.to
-								? { from: selection.from, to: selection.to }
-								: undefined;
-						// Access current callback from props
-						oncursorchange?.(cursorPos, selectionRange);
-
-						// Send selection info for comment button positioning
-						if (canAddComments && onselectionchange) {
-							onselectionchange(getSelectionInfo(update.view));
-						}
-					}
-				}),
-
-				EditorView.theme({
-					"&": {
-						fontSize: "14px",
-					},
-					".cm-gutters": {
-						display: "none",
-					},
-					".cm-scroller": {
-						fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-						lineHeight: "1.5",
-						overflow: "auto",
-					},
-				}),
-			],
+			doc: yText ? yText.toString() : value,
+			extensions,
 		});
 
 		editorView = new EditorView({
@@ -363,33 +245,43 @@
 			parent: container,
 		});
 
-		// Create nested effects to handle reactive updates without re-running the attachment
-		$effect(() => {
-			if (editorView) {
-				const currentContent = editorView.state.doc.toString();
-				if (value !== currentContent) {
-					isUpdatingFromRemote = true;
-					editorView.dispatch({
-						changes: {
-							from: 0,
-							to: editorView.state.doc.length,
-							insert: value,
-						},
-					});
-					isUpdatingFromRemote = false;
+		// Handle value synchronization for non-collaborative mode
+		if (!isCollaborative) {
+			$effect(() => {
+				if (editorView) {
+					const currentContent = editorView.state.doc.toString();
+					if (value !== currentContent) {
+						isUpdatingFromRemote = true;
+						editorView.dispatch({
+							changes: {
+								from: 0,
+								to: editorView.state.doc.length,
+								insert: value,
+							},
+						});
+						isUpdatingFromRemote = false;
+					}
 				}
+			});
+		}
+
+		$effect.pre(() => {
+			if (editorView) {
+				editorView.dispatch({
+					effects: updatePRCommentsEffect.of(prComments),
+				});
 			}
 		});
 
+		// Handle readonly changes
 		$effect(() => {
 			if (editorView) {
 				editorView.dispatch({
 					effects: StateEffect.reconfigure.of([
 						basicSetup,
 						markdown(),
-						remoteCursorsField,
-						remoteSelectionsField,
 						prCommentsField,
+						...(yText && awareness ? [yCollab(yText, awareness, { undoManager: false })] : []),
 						EditorView.updateListener.of((update) => {
 							if (update.docChanged && !isUpdatingFromRemote) {
 								const newValue = update.state.doc.toString();
@@ -405,7 +297,6 @@
 										: undefined;
 								oncursorchange?.(cursorPos, selectionRange);
 
-								// Send selection info for comment button positioning
 								if (canAddComments && onselectionchange) {
 									onselectionchange(getSelectionInfo(update.view));
 								}
@@ -426,30 +317,6 @@
 							},
 						}),
 					]),
-				});
-			}
-		});
-
-		$effect.pre(() => {
-			if (editorView) {
-				editorView.dispatch({
-					effects: updateRemoteCursorsEffect.of(remoteCursors),
-				});
-			}
-		});
-
-		$effect.pre(() => {
-			if (editorView) {
-				editorView.dispatch({
-					effects: updateRemoteSelectionsEffect.of(remoteSelections),
-				});
-			}
-		});
-
-		$effect.pre(() => {
-			if (editorView) {
-				editorView.dispatch({
-					effects: updatePRCommentsEffect.of(prComments),
 				});
 			}
 		});
@@ -509,6 +376,10 @@
 
 	export function focus() {
 		editorView?.focus();
+	}
+
+	export function getContent(): string {
+		return editorView?.state.doc.toString() ?? "";
 	}
 </script>
 
