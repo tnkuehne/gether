@@ -337,7 +337,7 @@
 			<!-- Key Features with Icons -->
 			<section class="mb-16">
 				<h2 class="mb-6 text-lg font-medium text-foreground">What you get</h2>
-				<div class="-mx-4 grid gap-6 px-4 sm:-mx-16 sm:grid-cols-2 sm:gap-8 sm:px-16">
+				<div class="-mx-4 grid gap-6 px-4 sm:-mx-32 sm:grid-cols-2 sm:gap-x-12 sm:gap-y-8 sm:px-8">
 					<div class="flex gap-4">
 						<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
 							<Users class="h-5 w-5 text-foreground" />
