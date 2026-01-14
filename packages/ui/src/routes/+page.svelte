@@ -91,15 +91,6 @@
 			content: "i love this",
 			url: "https://x.com/RhysSullivan/status/2006423915808301394",
 		},
-		{
-			name: "Mr Gcabashe",
-			handle: "GcabasheVukani",
-			avatar:
-				"https://cdn.xcancel.com/pic/A664DC8D764A8/profile_images%2F1804141748706254848%2FkLW2kBZ8_bigger.jpg",
-			content:
-				"Holly sht i will check this out, we had a shitty time at work looking for md editor actually",
-			url: "https://x.com/GcabasheVukani/status/2006703235533599166",
-		},
 	];
 
 	function sleep(ms: number) {
@@ -388,23 +379,23 @@
 			<!-- Testimonials -->
 			<section class="mb-16">
 				<h2 class="mb-6 text-lg font-medium text-foreground">What people are saying</h2>
-				<div class="grid gap-4 sm:grid-cols-2">
+				<div class="-mx-4 flex gap-4 overflow-x-auto px-4 sm:-mx-32 sm:justify-center sm:px-6">
 					{#each testimonials as testimonial (testimonial.handle)}
 						<a
 							href={testimonial.url}
 							target="_blank"
 							rel="noopener noreferrer"
-							class="flex gap-3 rounded-lg border p-4 transition-colors hover:bg-muted"
+							class="flex shrink-0 gap-3 rounded-lg border p-4 transition-colors hover:bg-muted"
 						>
 							<img
 								src={testimonial.avatar}
 								alt={testimonial.name}
 								class="h-10 w-10 shrink-0 rounded-full"
 							/>
-							<div class="min-w-0">
+							<div>
 								<div class="flex items-center gap-1">
-									<span class="truncate font-medium text-foreground">{testimonial.name}</span>
-									<span class="shrink-0 text-muted-foreground">@{testimonial.handle}</span>
+									<span class="font-medium text-foreground">{testimonial.name}</span>
+									<span class="text-muted-foreground">@{testimonial.handle}</span>
 								</div>
 								<p class="mt-1 text-sm text-muted-foreground">{testimonial.content}</p>
 							</div>
