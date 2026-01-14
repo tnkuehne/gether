@@ -66,6 +66,42 @@
 	const timoPhrase = " — in real time.";
 	const maxPhrase = " together";
 
+	const testimonials = [
+		{
+			name: "Nick Khami",
+			handle: "skeptrune",
+			avatar:
+				"https://cdn.xcancel.com/pic/A22D12BF459FC/profile_images%2F1914786311774593024%2FKFy4uSNd_bigger.jpg",
+			content: "very cool",
+			url: "https://x.com/skeptrune/status/2003477914596356402",
+		},
+		{
+			name: "Lennert Jansen",
+			handle: "lennertjansen",
+			avatar:
+				"https://cdn.xcancel.com/pic/7D05404876EEF/profile_images%2F1973104046710902784%2Fdy6phOTa_bigger.jpg",
+			content: "starred",
+			url: "https://x.com/lennertjansen/status/2003479306341933321",
+		},
+		{
+			name: "Rhys",
+			handle: "RhysSullivan",
+			avatar:
+				"https://cdn.xcancel.com/pic/F553653F14C10/profile_images%2F1303727365265203200%2F0cgHOP3y_bigger.jpg",
+			content: "i love this",
+			url: "https://x.com/RhysSullivan/status/2006423915808301394",
+		},
+		{
+			name: "Mr Gcabashe",
+			handle: "GcabasheVukani",
+			avatar:
+				"https://cdn.xcancel.com/pic/A664DC8D764A8/profile_images%2F1804141748706254848%2FkLW2kBZ8_bigger.jpg",
+			content:
+				"Holly sht i will check this out, we had a shitty time at work looking for md editor actually",
+			url: "https://x.com/GcabasheVukani/status/2006703235533599166",
+		},
+	];
+
 	function sleep(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
@@ -347,6 +383,34 @@
 						<span>Edit together with live preview</span>
 					</li>
 				</ol>
+			</section>
+
+			<!-- Testimonials -->
+			<section class="mb-16">
+				<h2 class="mb-6 text-lg font-medium text-foreground">What people are saying</h2>
+				<div class="grid gap-4 sm:grid-cols-2">
+					{#each testimonials as testimonial (testimonial.handle)}
+						<a
+							href={testimonial.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="flex gap-3 rounded-lg border p-4 transition-colors hover:bg-muted"
+						>
+							<img
+								src={testimonial.avatar}
+								alt={testimonial.name}
+								class="h-10 w-10 shrink-0 rounded-full"
+							/>
+							<div class="min-w-0">
+								<div class="flex items-center gap-1">
+									<span class="truncate font-medium text-foreground">{testimonial.name}</span>
+									<span class="shrink-0 text-muted-foreground">@{testimonial.handle}</span>
+								</div>
+								<p class="mt-1 text-sm text-muted-foreground">{testimonial.content}</p>
+							</div>
+						</a>
+					{/each}
+				</div>
 			</section>
 
 			<!-- Trust & Safety -->
