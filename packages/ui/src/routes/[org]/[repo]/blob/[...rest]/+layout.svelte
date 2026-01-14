@@ -51,8 +51,12 @@
 	// Load files when initPromise changes
 	$effect(() => {
 		isLoadingFiles = true;
-		initPromise
+		// Capture the current promise to guard against stale responses
+		const currentPromise = initPromise;
+		currentPromise
 			.then((result) => {
+				// Ignore stale responses from old promises
+				if (currentPromise !== initPromise) return;
 				files = result;
 				// Expand directories that contain the current file
 				if (path) {
@@ -64,6 +68,8 @@
 				isLoadingFiles = false;
 			})
 			.catch(() => {
+				// Ignore stale responses from old promises
+				if (currentPromise !== initPromise) return;
 				files = [];
 				isLoadingFiles = false;
 			});

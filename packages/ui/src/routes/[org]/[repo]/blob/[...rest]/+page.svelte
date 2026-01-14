@@ -424,8 +424,15 @@
 			hasStartedEditing = false;
 		}
 
+		// Capture current promise and path to guard against stale responses
+		const currentPromise = filePromise;
+		const requestedPath = currentPath;
+
 		// Fetch file content (works for both initial load and navigation)
-		filePromise.then((result) => {
+		currentPromise.then((result) => {
+			// Ignore stale responses if the path has changed or promise is outdated
+			if (requestedPath !== data.path || currentPromise !== filePromise) return;
+
 			if (result.fileData) {
 				fileData = result.fileData;
 				content = result.fileData.content;
