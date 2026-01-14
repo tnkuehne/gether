@@ -11,7 +11,7 @@ Collab[Collaboration Service]
 
 end
 
-  
+
 
 subgraph "External"
 
@@ -19,7 +19,7 @@ GitHub[GitHub APIs]
 
 end
 
-  
+
 
 UI <--> Preview
 
@@ -27,7 +27,7 @@ UI <--> Collab
 
 UI <--> GitHub
 
-  
+
 
 Preview -.->|Renders Content| UI
 
