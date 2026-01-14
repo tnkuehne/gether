@@ -356,6 +356,7 @@
 		{ from: number; to: number; color: string; userName?: string }
 	>();
 	let myConnectionId = $state<string>("");
+	let wsConnectedPath = $state<string | null>(null); // Track which path the WS is connected for
 	let editorRef: ReturnType<typeof CodeMirror> | null = $state(null);
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
@@ -404,6 +405,7 @@
 		// Close existing WebSocket connection before switching files (skip on initial)
 		if (!isInitialLoad && ws) {
 			ws.onclose = null; // Prevent reconnect logic
+			ws.onmessage = null; // Prevent processing any more messages
 			ws.close();
 			ws = null;
 		}
@@ -422,6 +424,10 @@
 
 			// Reset editing tracking
 			hasStartedEditing = false;
+
+			// Reset file data and WebSocket path to prevent reconnect with stale data
+			fileData = null;
+			wsConnectedPath = null;
 		}
 
 		// Capture current promise and path to guard against stale responses
@@ -431,7 +437,9 @@
 		// Fetch file content (works for both initial load and navigation)
 		currentPromise.then((result) => {
 			// Ignore stale responses if the path has changed or promise is outdated
-			if (requestedPath !== data.path || currentPromise !== filePromise) return;
+			if (requestedPath !== data.path || currentPromise !== filePromise) {
+				return;
+			}
 
 			if (result.fileData) {
 				fileData = result.fileData;
@@ -633,12 +641,16 @@
 
 	$effect(() => {
 		// Re-connect when session becomes available (if not already connected)
+		// fileData is reset to null during navigation, so it being non-null
+		// guarantees the current file is loaded
+		// Capture data.path directly to ensure we have the current value (derived values may be stale)
+		const currentPath = data.path;
 		if (fileData && $session.data && !ws) {
-			connect();
+			connect(currentPath);
 		}
 	});
 
-	function connect() {
+	function connect(pathToConnect: string) {
 		if (!fileData) return;
 
 		// Only connect if user is logged in
@@ -652,17 +664,28 @@
 		}
 
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
+		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${pathToConnect}/ws`;
+
+		// Track which path this WebSocket is connected for
+		const connectedPath = pathToConnect;
+		wsConnectedPath = connectedPath;
 
 		wsConnectionStatus = "connecting";
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {
+			// Ignore if this WebSocket connection is no longer current
+			if (wsConnectedPath !== connectedPath) return;
 			wsConnectionStatus = "connected";
 			ws?.send(JSON.stringify({ type: "init", content: content }));
 		};
 
 		ws.onmessage = (event) => {
+			// Ignore messages if this WebSocket connection is no longer current
+			if (wsConnectedPath !== connectedPath) {
+				return;
+			}
+
 			const data = JSON.parse(event.data);
 
 			switch (data.type) {
@@ -746,9 +769,11 @@
 		};
 
 		ws.onclose = () => {
+			// Ignore if this WebSocket connection is no longer current
+			if (wsConnectedPath !== connectedPath) return;
 			wsConnectionStatus = "disconnected";
-			// Only reconnect if still logged in
-			if ($session.data) {
+			// Only reconnect if still logged in and this connection is still current
+			if ($session.data && wsConnectedPath === connectedPath) {
 				setTimeout(connect, 2000);
 			}
 		};
