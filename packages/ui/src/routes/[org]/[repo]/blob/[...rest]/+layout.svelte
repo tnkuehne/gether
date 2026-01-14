@@ -6,7 +6,6 @@
 	import { getOctokit, getPublicOctokit } from "$lib/github-auth";
 	import * as Sidebar from "$lib/components/ui/sidebar";
 	import { Separator } from "$lib/components/ui/separator";
-	import { Skeleton } from "$lib/components/ui/skeleton";
 	import ContributionSidebar from "$lib/components/contribution/ContributionSidebar.svelte";
 	import HeartHandshake from "@lucide/svelte/icons/heart-handshake";
 	import Search from "@lucide/svelte/icons/search";
@@ -318,18 +317,14 @@
 		<header class="flex h-12 shrink-0 items-center gap-2 border-b px-4">
 			<Sidebar.Trigger class="-ml-1" />
 			<Separator orientation="vertical" class="h-4" />
-			{#await initPromise}
-				<Skeleton class="h-5 w-24" />
-			{:then}
-				<div class="flex min-w-0 items-center gap-2 text-sm">
-					<GitBranch class="size-4 shrink-0 text-muted-foreground" />
-					<span class="shrink-0 text-muted-foreground">{branch}</span>
-					{#if path}
-						<span class="text-muted-foreground">/</span>
-						<span class="truncate">{path}</span>
-					{/if}
-				</div>
-			{/await}
+			<div class="flex min-w-0 items-center gap-2 text-sm">
+				<GitBranch class="size-4 shrink-0 text-muted-foreground" />
+				<span class="shrink-0 text-muted-foreground">{branch}</span>
+				{#if path}
+					<span class="text-muted-foreground">/</span>
+					<span class="truncate">{path}</span>
+				{/if}
+			</div>
 		</header>
 
 		<!-- Main content -->
