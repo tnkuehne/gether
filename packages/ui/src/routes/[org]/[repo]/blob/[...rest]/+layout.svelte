@@ -6,7 +6,6 @@
 	import { getOctokit, getPublicOctokit } from "$lib/github-auth";
 	import * as Sidebar from "$lib/components/ui/sidebar";
 	import { Separator } from "$lib/components/ui/separator";
-	import { Skeleton } from "$lib/components/ui/skeleton";
 	import ContributionSidebar from "$lib/components/contribution/ContributionSidebar.svelte";
 	import HeartHandshake from "@lucide/svelte/icons/heart-handshake";
 	import Search from "@lucide/svelte/icons/search";
@@ -40,29 +39,41 @@
 	let searchQuery = $state("");
 	let expandedDirs = new SvelteSet<string>();
 
-	// Initialize files on load
-	const initPromise = (async () => {
-		const auth = await getOctokit();
-		const octokit = auth?.octokit ?? getPublicOctokit();
-		return getRepoFiles(octokit, org, repo, data.branch);
-	})()
-		.then((result) => {
-			files = result;
-			// Expand directories that contain the current file
-			if (path) {
-				const pathParts = path.split("/");
-				for (let i = 1; i < pathParts.length; i++) {
-					expandedDirs.add(pathParts.slice(0, i).join("/"));
+	// Initialize files on load - using $derived to properly capture reactive data
+	const initPromise = $derived(
+		(async () => {
+			const auth = await getOctokit();
+			const octokit = auth?.octokit ?? getPublicOctokit();
+			return getRepoFiles(octokit, data.org, data.repo, data.branch);
+		})(),
+	);
+
+	// Load files when initPromise changes
+	$effect(() => {
+		isLoadingFiles = true;
+		// Capture the current promise to guard against stale responses
+		const currentPromise = initPromise;
+		currentPromise
+			.then((result) => {
+				// Ignore stale responses from old promises
+				if (currentPromise !== initPromise) return;
+				files = result;
+				// Expand directories that contain the current file
+				if (path) {
+					const pathParts = path.split("/");
+					for (let i = 1; i < pathParts.length; i++) {
+						expandedDirs.add(pathParts.slice(0, i).join("/"));
+					}
 				}
-			}
-			isLoadingFiles = false;
-			return result;
-		})
-		.catch(() => {
-			files = [];
-			isLoadingFiles = false;
-			return [];
-		});
+				isLoadingFiles = false;
+			})
+			.catch(() => {
+				// Ignore stale responses from old promises
+				if (currentPromise !== initPromise) return;
+				files = [];
+				isLoadingFiles = false;
+			});
+	});
 
 	// Filter files based on search query, including ancestor directories
 	let filteredFiles = $derived.by(() => {
@@ -312,18 +323,14 @@
 		<header class="flex h-12 shrink-0 items-center gap-2 border-b px-4">
 			<Sidebar.Trigger class="-ml-1" />
 			<Separator orientation="vertical" class="h-4" />
-			{#await initPromise}
-				<Skeleton class="h-5 w-24" />
-			{:then}
-				<div class="flex min-w-0 items-center gap-2 text-sm">
-					<GitBranch class="size-4 shrink-0 text-muted-foreground" />
-					<span class="shrink-0 text-muted-foreground">{branch}</span>
-					{#if path}
-						<span class="text-muted-foreground">/</span>
-						<span class="truncate">{path}</span>
-					{/if}
-				</div>
-			{/await}
+			<div class="flex min-w-0 items-center gap-2 text-sm">
+				<GitBranch class="size-4 shrink-0 text-muted-foreground" />
+				<span class="shrink-0 text-muted-foreground">{branch}</span>
+				{#if path}
+					<span class="text-muted-foreground">/</span>
+					<span class="truncate">{path}</span>
+				{/if}
+			</div>
 		</header>
 
 		<!-- Main content -->

@@ -225,19 +225,17 @@
 
 	const session = authClient.useSession();
 
-	// Fetch data using promises chained after init
-	const filePromise = getFileContent(org!, repo!, data.path, data.branch);
-	const canEditPromise = getCanEdit(org!, repo!);
-	const getherConfigPromise = getGetherConfig(org!, repo!, data.branch);
-
-	// Contribution workflow data promises
-	const branchProtectedPromise = getIsBranchProtected(org!, repo!, data.branch);
+	// Promises for data fetching - using $derived to avoid reactivity warnings
+	const filePromise = $derived(getFileContent(data.org, data.repo, data.path, data.branch));
+	const canEditPromise = $derived(getCanEdit(data.org, data.repo));
+	const getherConfigPromise = $derived(getGetherConfig(data.org, data.repo, data.branch));
+	const branchProtectedPromise = $derived(getIsBranchProtected(data.org, data.repo, data.branch));
 	const currentUserPromise = getCurrentUser();
-	const existingForkPromise = checkUserFork(org!, repo!);
+	const existingForkPromise = $derived(checkUserFork(data.org, data.repo));
 
 	// Contribution workflow state
-	let currentOrg = $state(org!);
-	let currentRepo = $state(repo!);
+	let currentOrg = $derived(data.org);
+	let currentRepo = $derived(data.repo);
 	let currentBranch = $state<string>("");
 	let canEdit = $state(false);
 	let isProtected = $state(false);
@@ -358,6 +356,7 @@
 		{ from: number; to: number; color: string; userName?: string }
 	>();
 	let myConnectionId = $state<string>("");
+	let wsConnectedPath = $state<string | null>(null); // Track which path the WS is connected for
 	let editorRef: ReturnType<typeof CodeMirror> | null = $state(null);
 	let hasUnsavedChanges = $derived(content !== originalContent);
 
@@ -390,76 +389,71 @@
 		}
 	});
 
-	const result = await filePromise;
-	if (result.fileData) {
-		fileData = result.fileData;
-		content = result.fileData.content;
-		originalContent = result.fileData.content;
-		lastValue = result.fileData.content;
-
-		// Parse frontmatter if present
-		const parsed = parseFrontmatter(result.fileData.content);
-		hasFrontmatter = parsed.hasFrontmatter;
-		frontmatterFields = parsed.frontmatter;
-		bodyContent = parsed.content;
-		// Set editor content based on whether frontmatter exists
-		editorContent = parsed.hasFrontmatter ? parsed.content : result.fileData.content;
-	}
-
-	// Watch for data changes (file switching via sidebar triggers load function re-run)
+	// Watch for data/path changes and load file content
 	let lastPath = $state<string | undefined>(undefined);
 	$effect(() => {
-		// Skip initial load
-		if (lastPath === undefined) {
-			lastPath = data.path;
+		const currentPath = data.path;
+		const isInitialLoad = lastPath === undefined;
+
+		// Skip if no change (but always run on initial load)
+		if (!isInitialLoad && currentPath === lastPath) {
 			return;
 		}
 
-		// Skip if no change
-		if (data.path === lastPath) {
-			return;
-		}
+		lastPath = currentPath;
 
-		lastPath = data.path;
-
-		// Close existing WebSocket connection before switching files
-		if (ws) {
+		// Close existing WebSocket connection before switching files (skip on initial)
+		if (!isInitialLoad && ws) {
 			ws.onclose = null; // Prevent reconnect logic
+			ws.onmessage = null; // Prevent processing any more messages
 			ws.close();
 			ws = null;
 		}
 
 		// Clear remote cursors/selections from previous file
-		remoteCursors.clear();
-		remoteSelections.clear();
+		if (!isInitialLoad) {
+			remoteCursors.clear();
+			remoteSelections.clear();
 
-		// Reset comment state
-		selectedThread = null;
-		commentPopoverOpen = false;
-		prComments = new Map();
-		newCommentLine = null;
-		newCommentText = "";
+			// Reset comment state
+			selectedThread = null;
+			commentPopoverOpen = false;
+			prComments = new Map();
+			newCommentLine = null;
+			newCommentText = "";
 
-		// Reset editing tracking
-		hasStartedEditing = false;
+			// Reset editing tracking
+			hasStartedEditing = false;
 
-		// Fetch new file content
-		getFileContent(org!, repo!, data.path, data.branch).then((fileResult) => {
-			if (fileResult.fileData) {
-				fileData = fileResult.fileData;
-				content = fileResult.fileData.content;
-				originalContent = fileResult.fileData.content;
-				lastValue = fileResult.fileData.content;
+			// Reset file data and WebSocket path to prevent reconnect with stale data
+			fileData = null;
+			wsConnectedPath = null;
+		}
+
+		// Capture current promise and path to guard against stale responses
+		const currentPromise = filePromise;
+		const requestedPath = currentPath;
+
+		// Fetch file content (works for both initial load and navigation)
+		currentPromise.then((result) => {
+			// Ignore stale responses if the path has changed or promise is outdated
+			if (requestedPath !== data.path || currentPromise !== filePromise) {
+				return;
+			}
+
+			if (result.fileData) {
+				fileData = result.fileData;
+				content = result.fileData.content;
+				originalContent = result.fileData.content;
+				lastValue = result.fileData.content;
 
 				// Parse frontmatter if present
-				const parsedFm = parseFrontmatter(fileResult.fileData.content);
-				hasFrontmatter = parsedFm.hasFrontmatter;
-				frontmatterFields = parsedFm.frontmatter;
-				bodyContent = parsedFm.content;
-				editorContent = parsedFm.hasFrontmatter ? parsedFm.content : fileResult.fileData.content;
-
-				// Reconnect WebSocket for new file (will happen via the session effect)
-			} else if (fileResult.error) {
+				const parsed = parseFrontmatter(result.fileData.content);
+				hasFrontmatter = parsed.hasFrontmatter;
+				frontmatterFields = parsed.frontmatter;
+				bodyContent = parsed.content;
+				editorContent = parsed.hasFrontmatter ? parsed.content : result.fileData.content;
+			} else if (result.error) {
 				// Handle error - reset file data
 				fileData = null;
 				content = "";
@@ -647,12 +641,16 @@
 
 	$effect(() => {
 		// Re-connect when session becomes available (if not already connected)
+		// fileData is reset to null during navigation, so it being non-null
+		// guarantees the current file is loaded
+		// Capture data.path directly to ensure we have the current value (derived values may be stale)
+		const currentPath = data.path;
 		if (fileData && $session.data && !ws) {
-			connect();
+			connect(currentPath);
 		}
 	});
 
-	function connect() {
+	function connect(pathToConnect: string) {
 		if (!fileData) return;
 
 		// Only connect if user is logged in
@@ -666,17 +664,28 @@
 		}
 
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${path}/ws`;
+		const wsUrl = `${protocol}//${window.location.host}/${org}/${repo}/blob/${branch}/${pathToConnect}/ws`;
+
+		// Track which path this WebSocket is connected for
+		const connectedPath = pathToConnect;
+		wsConnectedPath = connectedPath;
 
 		wsConnectionStatus = "connecting";
 		ws = new WebSocket(wsUrl);
 
 		ws.onopen = () => {
+			// Ignore if this WebSocket connection is no longer current
+			if (wsConnectedPath !== connectedPath) return;
 			wsConnectionStatus = "connected";
 			ws?.send(JSON.stringify({ type: "init", content: content }));
 		};
 
 		ws.onmessage = (event) => {
+			// Ignore messages if this WebSocket connection is no longer current
+			if (wsConnectedPath !== connectedPath) {
+				return;
+			}
+
 			const data = JSON.parse(event.data);
 
 			switch (data.type) {
@@ -760,9 +769,11 @@
 		};
 
 		ws.onclose = () => {
+			// Ignore if this WebSocket connection is no longer current
+			if (wsConnectedPath !== connectedPath) return;
 			wsConnectionStatus = "disconnected";
-			// Only reconnect if still logged in
-			if ($session.data) {
+			// Only reconnect if still logged in and this connection is still current
+			if ($session.data && wsConnectedPath === connectedPath) {
 				setTimeout(connect, 2000);
 			}
 		};
