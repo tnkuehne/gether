@@ -66,6 +66,33 @@
 	const timoPhrase = " — in real time.";
 	const maxPhrase = " together";
 
+	const testimonials = [
+		{
+			name: "Nick Khami",
+			handle: "skeptrune",
+			avatar:
+				"https://cdn.xcancel.com/pic/A22D12BF459FC/profile_images%2F1914786311774593024%2FKFy4uSNd_bigger.jpg",
+			content: "very cool",
+			url: "https://x.com/skeptrune/status/2003477914596356402",
+		},
+		{
+			name: "Lennert Jansen",
+			handle: "lennertjansen",
+			avatar:
+				"https://cdn.xcancel.com/pic/7D05404876EEF/profile_images%2F1973104046710902784%2Fdy6phOTa_bigger.jpg",
+			content: "starred",
+			url: "https://x.com/lennertjansen/status/2003479306341933321",
+		},
+		{
+			name: "Rhys",
+			handle: "RhysSullivan",
+			avatar:
+				"https://cdn.xcancel.com/pic/F553653F14C10/profile_images%2F1303727365265203200%2F0cgHOP3y_bigger.jpg",
+			content: "i love this",
+			url: "https://x.com/RhysSullivan/status/2006423915808301394",
+		},
+	];
+
 	function sleep(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
@@ -347,6 +374,35 @@
 						<span>Edit together with live preview</span>
 					</li>
 				</ol>
+			</section>
+
+			<!-- Testimonials -->
+			<section class="mb-16">
+				<h2 class="mb-6 text-lg font-medium text-foreground">What people are saying</h2>
+				<div class="-mx-4 flex gap-4 overflow-x-auto px-4 sm:-mx-32 sm:justify-center sm:px-6">
+					{#each testimonials as testimonial (testimonial.handle)}
+						<a
+							href={testimonial.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="flex shrink-0 gap-3 rounded-lg border p-4 transition-colors hover:bg-muted"
+						>
+							<img
+								src={testimonial.avatar}
+								alt={testimonial.name}
+								class="h-10 w-10 shrink-0 rounded-full"
+								loading="lazy"
+							/>
+							<div>
+								<div class="flex items-center gap-1">
+									<span class="font-medium text-foreground">{testimonial.name}</span>
+									<span class="text-muted-foreground">@{testimonial.handle}</span>
+								</div>
+								<p class="mt-1 text-sm text-muted-foreground">{testimonial.content}</p>
+							</div>
+						</a>
+					{/each}
+				</div>
 			</section>
 
 			<!-- Trust & Safety -->
