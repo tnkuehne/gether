@@ -391,6 +391,7 @@
 								src={testimonial.avatar}
 								alt={testimonial.name}
 								class="h-10 w-10 shrink-0 rounded-full"
+								loading="lazy"
 							/>
 							<div>
 								<div class="flex items-center gap-1">
