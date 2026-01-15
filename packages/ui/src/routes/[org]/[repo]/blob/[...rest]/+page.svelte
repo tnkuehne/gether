@@ -1051,7 +1051,7 @@
 	}
 </script>
 
-<div class="flex h-full flex-col overflow-hidden">
+<div class="flex h-full flex-col overflow-hidden touch-pan-x touch-pan-y">
 	{#await filePromise}
 		<!-- Loading skeleton -->
 		<div class="flex shrink-0 items-center gap-2 border-b px-4 py-2">
@@ -1350,7 +1350,7 @@
 										sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
 									></iframe>
 								{:else if isMarkdown}
-									<div class="h-full overflow-auto bg-background p-6">
+									<div class="h-full overflow-auto bg-background p-6 touch-pan-x touch-pan-y">
 										<Streamdown
 											content={hasFrontmatter ? bodyContent : content}
 											baseTheme="shadcn"
@@ -1411,7 +1411,7 @@
 								sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
 							></iframe>
 						{:else if isMarkdown}
-							<div class="h-full overflow-auto bg-background p-4">
+							<div class="h-full overflow-auto bg-background p-4 touch-pan-x touch-pan-y">
 								<Streamdown
 									content={hasFrontmatter ? bodyContent : content}
 									baseTheme="shadcn"

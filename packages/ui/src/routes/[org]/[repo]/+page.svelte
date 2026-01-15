@@ -157,7 +157,7 @@
 	}
 </script>
 
-<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
+<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8 touch-pan-x touch-pan-y">
 	<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 		<div>
 			<h1 class="mb-2 text-2xl font-bold break-all sm:text-3xl">

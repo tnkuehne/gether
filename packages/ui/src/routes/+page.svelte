@@ -218,7 +218,7 @@
 
 {#if data.user}
 	<!-- Authenticated - show dashboard -->
-	<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
+	<div class="container mx-auto px-4 py-6 sm:px-6 sm:py-8 touch-pan-x touch-pan-y">
 		{#await fetchGitHubAppStatus()}
 			<div class="mb-6 flex items-center justify-between">
 				<h1 class="text-2xl font-bold sm:text-3xl">Your Repositories</h1>

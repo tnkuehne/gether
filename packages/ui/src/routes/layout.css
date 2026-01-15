@@ -121,6 +121,21 @@
 	body {
 		@apply bg-background text-foreground;
 	}
+	/* Prevent iOS auto-zoom on input focus (requires >= 16px) */
+	@media screen and (max-width: 768px) {
+		input,
+		textarea,
+		select {
+			font-size: 16px !important;
+		}
+	}
+}
+
+/* Disable pinch zoom on CodeMirror editor */
+.cm-editor,
+.cm-scroller,
+.cm-content {
+	touch-action: pan-x pan-y;
 }
 
 /* SSG Logo Carousel Animation */
