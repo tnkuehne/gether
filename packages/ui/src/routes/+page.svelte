@@ -379,6 +379,69 @@
 				</div>
 			</section>
 
+			<!-- SSG Logo Carousel -->
+			<section class="mb-16">
+				<p class="mb-6 text-center text-sm text-muted-foreground">
+					Works with your favorite static site generator
+				</p>
+				<div class="relative -mx-4 sm:-mx-32">
+					<!-- Gradient fade left -->
+					<div
+						class="pointer-events-none absolute top-0 left-0 z-10 h-full w-16 bg-gradient-to-r from-background to-transparent"
+					></div>
+					<!-- Gradient fade right -->
+					<div
+						class="pointer-events-none absolute top-0 right-0 z-10 h-full w-16 bg-gradient-to-l from-background to-transparent"
+					></div>
+
+					<div class="overflow-hidden">
+						<div class="logo-carousel flex w-max gap-12 py-4">
+							<!-- First set of logos -->
+							{#each [{ name: "Astro", icon: "M12.5 2.5l3 9h-6l3-9zm-2 9l-4 8 6-4 6 4-4-8h-4z" }, { name: "Next.js", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-6l5 6h-5zm1-8V5l6 7h-3l-3-3z" }, { name: "Hugo", icon: "M4 3h16v18H4V3zm2 2v14h12V5H6zm2 2h3v4h2V7h3v10h-3v-4H8v4H5V7z" }, { name: "Nuxt", icon: "M19.7 17.2L13.1 5.8c-.3-.6-1-.9-1.6-.9s-1.3.3-1.6.9L7.5 10l-3.4 6c-.3.5-.3 1.2 0 1.7.3.5.9.8 1.5.8h12.6c.9 0 1.7-.8 1.7-1.7 0-.3-.1-.6-.2-.9zM8.5 16l2-3.5 2 3.5h-4z" }, { name: "Gatsby", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20c-4.41 0-8-3.59-8-8zm14.31 4.9L7.1 5.69C8.45 4.63 10.15 4 12 4c4.41 0 8 3.59 8 8 0 1.85-.63 3.55-1.69 4.9z" }, { name: "Eleventy", icon: "M7 2h2v20H7V2zm8 0h2v20h-2V2z" }, { name: "SvelteKit", icon: "M15.5 1.5c-2.83 0-5.37 1.18-7.18 3.08C6.5 6.48 5.5 9.12 5.5 12c0 2.88 1 5.52 2.82 7.42 1.81 1.9 4.35 3.08 7.18 3.08 1.93 0 3.73-.54 5.25-1.47l-1.5-1.8c-1.14.65-2.43 1.02-3.75 1.02-1.95 0-3.72-.82-5-2.13-1.28-1.32-2.07-3.14-2.07-5.12 0-1.98.79-3.8 2.07-5.12 1.28-1.31 3.05-2.13 5-2.13 1.32 0 2.61.37 3.75 1.02l1.5-1.8C18.23 2.04 16.43 1.5 15.5 1.5z" }, { name: "Jekyll", icon: "M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L18.5 8 12 11.5 5.5 8 12 4.5zM4 9.5l7 3.5v6.5l-7-3.5V9.5zm16 0v6.5l-7 3.5V13l7-3.5z" }, { name: "VitePress", icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" }, { name: "Docusaurus", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" }, { name: "Remix", icon: "M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2zM12 7v4l4-2-4-2zm0 6v4l4-2-4-2z" }, { name: "Hexo", icon: "M12 2l-8 4.5v9L12 20l8-4.5v-9L12 2zm0 2.5l5.5 3L12 10.5 6.5 7.5 12 4.5zM5 9l6 3.5v5.5L5 14.5V9zm14 0v5.5l-6 3.5v-5.5l6-3.5z" }] as ssg (ssg.name)}
+								<div
+									class="flex shrink-0 items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+								>
+									<svg
+										class="h-5 w-5"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<path d={ssg.icon} />
+									</svg>
+									<span class="text-sm font-medium">{ssg.name}</span>
+								</div>
+							{/each}
+							<!-- Duplicate for seamless loop -->
+							{#each [{ name: "Astro", icon: "M12.5 2.5l3 9h-6l3-9zm-2 9l-4 8 6-4 6 4-4-8h-4z" }, { name: "Next.js", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-6l5 6h-5zm1-8V5l6 7h-3l-3-3z" }, { name: "Hugo", icon: "M4 3h16v18H4V3zm2 2v14h12V5H6zm2 2h3v4h2V7h3v10h-3v-4H8v4H5V7z" }, { name: "Nuxt", icon: "M19.7 17.2L13.1 5.8c-.3-.6-1-.9-1.6-.9s-1.3.3-1.6.9L7.5 10l-3.4 6c-.3.5-.3 1.2 0 1.7.3.5.9.8 1.5.8h12.6c.9 0 1.7-.8 1.7-1.7 0-.3-.1-.6-.2-.9zM8.5 16l2-3.5 2 3.5h-4z" }, { name: "Gatsby", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20c-4.41 0-8-3.59-8-8zm14.31 4.9L7.1 5.69C8.45 4.63 10.15 4 12 4c4.41 0 8 3.59 8 8 0 1.85-.63 3.55-1.69 4.9z" }, { name: "Eleventy", icon: "M7 2h2v20H7V2zm8 0h2v20h-2V2z" }, { name: "SvelteKit", icon: "M15.5 1.5c-2.83 0-5.37 1.18-7.18 3.08C6.5 6.48 5.5 9.12 5.5 12c0 2.88 1 5.52 2.82 7.42 1.81 1.9 4.35 3.08 7.18 3.08 1.93 0 3.73-.54 5.25-1.47l-1.5-1.8c-1.14.65-2.43 1.02-3.75 1.02-1.95 0-3.72-.82-5-2.13-1.28-1.32-2.07-3.14-2.07-5.12 0-1.98.79-3.8 2.07-5.12 1.28-1.31 3.05-2.13 5-2.13 1.32 0 2.61.37 3.75 1.02l1.5-1.8C18.23 2.04 16.43 1.5 15.5 1.5z" }, { name: "Jekyll", icon: "M12 2L2 7v10l10 5 10-5V7L12 2zm0 2.5L18.5 8 12 11.5 5.5 8 12 4.5zM4 9.5l7 3.5v6.5l-7-3.5V9.5zm16 0v6.5l-7 3.5V13l7-3.5z" }, { name: "VitePress", icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" }, { name: "Docusaurus", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" }, { name: "Remix", icon: "M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2zM12 7v4l4-2-4-2zm0 6v4l4-2-4-2z" }, { name: "Hexo", icon: "M12 2l-8 4.5v9L12 20l8-4.5v-9L12 2zm0 2.5l5.5 3L12 10.5 6.5 7.5 12 4.5zM5 9l6 3.5v5.5L5 14.5V9zm14 0v5.5l-6 3.5v-5.5l6-3.5z" }] as ssg (ssg.name + "-dup")}
+								<div
+									class="flex shrink-0 items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
+								>
+									<svg
+										class="h-5 w-5"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<path d={ssg.icon} />
+									</svg>
+									<span class="text-sm font-medium">{ssg.name}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				</div>
+				<p class="mt-4 text-center text-sm text-muted-foreground">
+					...and any other that builds from markdown
+				</p>
+			</section>
+
 			<!-- Who it's for -->
 			<section class="mb-16">
 				<h2 class="mb-6 text-lg font-medium text-foreground">Built for</h2>

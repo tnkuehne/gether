@@ -122,3 +122,21 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+/* SSG Logo Carousel Animation */
+@keyframes scroll-logos {
+	0% {
+		transform: translateX(0);
+	}
+	100% {
+		transform: translateX(-50%);
+	}
+}
+
+.logo-carousel {
+	animation: scroll-logos 25s linear infinite;
+}
+
+.logo-carousel:hover {
+	animation-play-state: paused;
+}
