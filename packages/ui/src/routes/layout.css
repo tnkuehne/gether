@@ -118,12 +118,8 @@
 	* {
 		@apply border-border outline-ring/50;
 	}
-	html {
-		touch-action: manipulation;
-	}
 	body {
 		@apply bg-background text-foreground;
-		touch-action: manipulation;
 	}
 	/* Prevent iOS auto-zoom on input focus (requires >= 16px) */
 	@media screen and (max-width: 768px) {
