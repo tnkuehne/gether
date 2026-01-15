@@ -160,7 +160,7 @@
 	}
 </script>
 
-<Sidebar.Provider class="h-svh overflow-hidden">
+<Sidebar.Provider class="h-svh overflow-hidden touch-pan-x touch-pan-y">
 	<Sidebar.Root variant="inset" collapsible="offcanvas">
 		<Sidebar.Header>
 			<a href="/" class="flex items-center gap-2 px-2 py-1">

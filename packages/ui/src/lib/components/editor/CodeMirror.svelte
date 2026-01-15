@@ -512,4 +512,4 @@
 	}
 </script>
 
-<div {@attach initializeEditor}></div>
+<div class="touch-pan-x touch-pan-y" {@attach initializeEditor}></div>
