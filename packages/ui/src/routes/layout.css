@@ -132,7 +132,9 @@
 }
 
 /* Disable pinch zoom on CodeMirror editor */
-.cm-editor {
+.cm-editor,
+.cm-scroller,
+.cm-content {
 	touch-action: pan-x pan-y;
 }
 
