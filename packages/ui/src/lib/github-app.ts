@@ -219,12 +219,16 @@ export async function getDefaultBranch(
 	octokit: Octokit,
 	org: string,
 	repo: string,
-): Promise<string> {
-	const { data: repoData } = await octokit.rest.repos.get({
-		owner: org,
-		repo: repo,
-	});
-	return repoData.default_branch;
+): Promise<string | null> {
+	try {
+		const { data: repoData } = await octokit.rest.repos.get({
+			owner: org,
+			repo: repo,
+		});
+		return repoData.default_branch;
+	} catch {
+		return null;
+	}
 }
 
 /**

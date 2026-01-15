@@ -469,6 +469,17 @@ describe("github-app", () => {
 
 			expect(result).toBe("master");
 		});
+
+		it("should return null when repository access fails", async () => {
+			mockOctokit.rest.repos.get.mockRejectedValue({
+				status: 404,
+				message: "Not Found",
+			});
+
+			const result = await getDefaultBranch(mockOctokit as unknown as Octokit, "org", "repo");
+
+			expect(result).toBeNull();
+		});
 	});
 
 	describe("forkRepository", () => {
