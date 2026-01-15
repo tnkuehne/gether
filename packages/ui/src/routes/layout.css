@@ -131,6 +131,11 @@
 	}
 }
 
+/* Disable pinch zoom on CodeMirror editor */
+.cm-editor {
+	touch-action: pan-x pan-y;
+}
+
 /* SSG Logo Carousel Animation */
 @keyframes scroll-logos {
 	0% {
