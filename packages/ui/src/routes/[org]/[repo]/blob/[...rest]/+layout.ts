@@ -16,7 +16,7 @@ export const load: LayoutLoad = async ({ params }) => {
 	let branch = defaultBranch ?? "main";
 	let path = "";
 
-	if (rest) {
+	if (rest && branches.length > 0) {
 		const parsed = parseBranchAndPath(rest, branches, defaultBranch ?? undefined);
 		if (parsed) {
 			branch = parsed.branch;
