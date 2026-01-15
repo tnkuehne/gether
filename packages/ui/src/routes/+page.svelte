@@ -21,7 +21,7 @@
 	import Users from "@lucide/svelte/icons/users";
 	import Eye from "@lucide/svelte/icons/eye";
 	import GitBranch from "@lucide/svelte/icons/git-branch";
-	import Server from "@lucide/svelte/icons/server";
+	import Zap from "@lucide/svelte/icons/zap";
 
 	// Server-side user data for instant SSR decision
 	let { data } = $props();
@@ -420,11 +420,13 @@
 					</div>
 					<div class="flex gap-4">
 						<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-							<Server class="h-5 w-5 text-foreground" />
+							<Zap class="h-5 w-5 text-foreground" />
 						</div>
 						<div>
-							<p class="font-medium text-foreground">Any static site generator</p>
-							<p class="text-sm text-muted-foreground">Works with Astro, Next.js, Hugo, and more</p>
+							<p class="font-medium text-foreground">No setup required</p>
+							<p class="text-sm text-muted-foreground">
+								Works with any existing GitHub repo instantly
+							</p>
 						</div>
 					</div>
 				</div>
