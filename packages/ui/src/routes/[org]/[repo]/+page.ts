@@ -15,8 +15,9 @@ export const load: PageLoad = async ({ params }) => {
 
 	// Files depend on the default branch, so we chain them
 	const filesPromise = getDefaultBranch(octokit, org, repo).then(async (defaultBranch) => {
-		const files = await getRepoFiles(octokit, org, repo, defaultBranch);
-		return { defaultBranch, files };
+		const branch = defaultBranch ?? "main";
+		const files = await getRepoFiles(octokit, org, repo, branch);
+		return { defaultBranch: branch, files };
 	});
 
 	return {
