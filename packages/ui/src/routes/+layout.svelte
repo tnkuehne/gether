@@ -23,6 +23,30 @@
 			}
 		}
 	});
+
+	// Disable pinch-to-zoom on iOS Safari
+	$effect(() => {
+		if (!browser) return;
+
+		// Prevent pinch zoom via gesture events (Safari)
+		const preventGesture = (e: Event) => e.preventDefault();
+		document.addEventListener("gesturestart", preventGesture);
+		document.addEventListener("gesturechange", preventGesture);
+
+		// Prevent pinch zoom via touch events (2+ fingers)
+		const preventPinchZoom = (e: TouchEvent) => {
+			if (e.touches.length > 1) {
+				e.preventDefault();
+			}
+		};
+		document.addEventListener("touchmove", preventPinchZoom, { passive: false });
+
+		return () => {
+			document.removeEventListener("gesturestart", preventGesture);
+			document.removeEventListener("gesturechange", preventGesture);
+			document.removeEventListener("touchmove", preventPinchZoom);
+		};
+	});
 </script>
 
 <ModeWatcher />

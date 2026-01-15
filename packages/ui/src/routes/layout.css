@@ -125,6 +125,14 @@
 		@apply bg-background text-foreground;
 		touch-action: manipulation;
 	}
+	/* Prevent iOS auto-zoom on input focus (requires >= 16px) */
+	@media screen and (max-width: 768px) {
+		input,
+		textarea,
+		select {
+			font-size: 16px !important;
+		}
+	}
 }
 
 /* SSG Logo Carousel Animation */
