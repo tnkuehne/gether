@@ -14,6 +14,19 @@ export const auth = betterAuth({
 			redirectURI: `${BETTER_AUTH_URL}/api/auth/callback/github`,
 		},
 	},
+	session: {
+		expiresIn: 60 * 60 * 24 * 30, // 30 days
+		updateAge: 60 * 60 * 24, // Refresh session expiration daily
+		cookieCache: {
+			enabled: true,
+			maxAge: 60 * 60 * 24 * 7, // 7 day cache
+			refreshCache: true, // Auto-refresh when 80% of maxAge is reached
+		},
+	},
+	account: {
+		storeStateStrategy: "cookie", // Store OAuth state in cookie for stateless auth
+		storeAccountCookie: true, // Store account info in cookie for stateless auth
+	},
 	plugins: [
 		oAuthProxy({
 			productionURL: BETTER_AUTH_URL,
