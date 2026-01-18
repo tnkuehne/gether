@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
 
-const FAVICON_SIZE = 144;
+const FAVICON_SIZE = 180;
 
 export function faviconPlugin(): Plugin {
 	return {
@@ -14,7 +14,7 @@ export function faviconPlugin(): Plugin {
 			if (!outDir) return;
 
 			const svgPath = join(outDir, "favicon.svg");
-			const pngPath = join(outDir, "favicon.png");
+			const pngPath = join(outDir, "apple-touch-icon.png");
 
 			try {
 				const svg = readFileSync(svgPath, "utf-8");
