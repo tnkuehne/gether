@@ -59,6 +59,6 @@
 		"vite": "npm:rolldown-vite@7.3.0",
 		"vitest": "^4.0.16",
 		"vitest-browser-svelte": "^2.0.1",
-		"wrangler": "^4.54.0"
+		"wrangler": "^4.59.1"
 	}
 }
